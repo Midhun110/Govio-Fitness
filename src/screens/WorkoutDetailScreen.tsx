@@ -1,0 +1,332 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
+import { RouteProp, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
+
+type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
+
+type WorkoutDetailScreenProps = {
+  route: WorkoutDetailScreenRouteProp;
+};
+
+export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps) {
+  const { session, workoutId, title, duration, difficulty, calories, description, exercisesList } = route.params;
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  const handleStartWorkout = () => {
+    // Navigate to LogWorkout and pass the exercises from this workout
+    navigation.navigate('LogWorkout', {
+      session,
+      initialExercises: exercisesList,
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Cover Image Header */}
+        <View style={styles.imageContainer}>
+          <Image
+            source={{
+              uri: workoutId === 'popular-1' 
+                ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=800' // HIIT
+                : workoutId === 'popular-2'
+                ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=800' // Strength
+                : 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=800', // General/Yoga
+            }}
+            style={styles.coverImage}
+            resizeMode="cover"
+          />
+
+          {/* Navigation Bar Overlay */}
+          <View style={styles.navBarOverlay}>
+            <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.navIconText}>←</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.iconButton} onPress={() => setIsFavorite(!isFavorite)}>
+              <Text style={[styles.navIconText, isFavorite && styles.favoriteActive]}>
+                {isFavorite ? '♥' : '♡'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Workout Info Box */}
+        <View style={styles.detailsContainer}>
+          <Text style={styles.title}>{title}</Text>
+
+          {/* Stats Badges */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBadge}>
+              <Text style={styles.statIcon}>⏱</Text>
+              <Text style={styles.statText}>{duration}</Text>
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statIcon}>⚡</Text>
+              <Text style={styles.statText}>{difficulty}</Text>
+            </View>
+            <View style={styles.statBadge}>
+              <Text style={styles.statIcon}>🔥</Text>
+              <Text style={styles.statText}>{calories}</Text>
+            </View>
+          </View>
+
+          {/* About Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>About Workout</Text>
+            <Text style={styles.description}>{description}</Text>
+          </View>
+
+          {/* Exercises Header */}
+          <View style={styles.exercisesHeaderRow}>
+            <Text style={styles.sectionTitle}>Exercises</Text>
+            <Text style={styles.exercisesCountText}>{exercisesList?.length || 0} Moves</Text>
+          </View>
+
+          {/* Exercises List */}
+          <View style={styles.exercisesList}>
+            {exercisesList?.map((item: any, index: number) => (
+              <View key={item.id || index} style={styles.exerciseItem}>
+                <View style={styles.exerciseIndexContainer}>
+                  <Text style={styles.exerciseIndexText}>
+                    {(index + 1).toString().padStart(2, '0')}
+                  </Text>
+                </View>
+
+                <View style={styles.exerciseDetails}>
+                  <Text style={styles.exerciseName}>{item.name}</Text>
+                  <Text style={styles.exerciseSubtitle}>
+                    {item.sets || 3} Sets • {item.reps || '10-12 reps'}
+                  </Text>
+                </View>
+
+                <View style={styles.targetBadge}>
+                  <Text style={styles.targetBadgeText}>
+                    {item.muscle_group || 'Core'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Floating Action Button */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={styles.startButton}
+          activeOpacity={0.85}
+          onPress={handleStartWorkout}
+        >
+          <Text style={styles.startButtonText}>Start Workout</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  scrollContent: {
+    paddingBottom: 110,
+  },
+  imageContainer: {
+    height: 280,
+    width: '100%',
+    position: 'relative',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  navBarOverlay: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(18, 18, 18, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#242424',
+  },
+  navIconText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  favoriteActive: {
+    color: '#D4FF13', // Neon Lime Green
+  },
+  detailsContainer: {
+    padding: 24,
+    marginTop: -20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: '#121212',
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    marginBottom: 24,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1,
+    borderColor: '#2D2D37',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginRight: 10,
+  },
+  statIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  statText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  description: {
+    fontSize: 14,
+    color: '#A0A0A0',
+    lineHeight: 20,
+  },
+  exercisesHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderTopWidth: 1,
+    borderColor: '#1E1E1E',
+    paddingTop: 20,
+  },
+  exercisesCountText: {
+    color: '#D4FF13',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  exercisesList: {
+    marginBottom: 10,
+  },
+  exerciseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1,
+    borderColor: '#2D2D37',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  exerciseIndexContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(212, 255, 19, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  exerciseIndexText: {
+    color: '#D4FF13',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  exerciseDetails: {
+    flex: 1,
+  },
+  exerciseName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  exerciseSubtitle: {
+    color: '#A0A0A0',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  targetBadge: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  targetBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(18, 18, 18, 0.85)',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderTopWidth: 1,
+    borderColor: '#1E1E1E',
+  },
+  startButton: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  startButtonText: {
+    color: '#121212',
+    fontSize: 15,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+});
