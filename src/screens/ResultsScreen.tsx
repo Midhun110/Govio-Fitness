@@ -166,7 +166,7 @@ export default function ResultsScreen({ route }: ResultsScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -211,11 +211,11 @@ const styles = StyleSheet.create({
   },
   calorieContainer: {
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderRadius: 20,
     paddingVertical: 24,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     marginBottom: 28,
     shadowColor: '#D4FF13',
     shadowOffset: { width: 0, height: 6 },
@@ -248,13 +248,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   macroCard: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderRadius: 16,
     borderLeftWidth: 4,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   macroRow: {
     flexDirection: 'row',
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   },
   progressBarOuter: {
     height: 6,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 8,
@@ -296,9 +296,9 @@ const styles = StyleSheet.create({
   },
   metricItem: {
     flex: 1,
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 8,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   continueButtonText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

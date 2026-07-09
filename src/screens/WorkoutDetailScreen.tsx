@@ -141,7 +141,7 @@ export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   scrollContent: {
     paddingBottom: 110,
@@ -168,11 +168,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(18, 18, 18, 0.7)',
+    backgroundColor: 'rgba(13, 20, 29, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#242424',
+    borderColor: '#192029',
   },
   navIconText: {
     color: '#FFFFFF',
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   title: {
     fontSize: 26,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(18, 18, 18, 0.85)',
+    backgroundColor: 'rgba(13, 20, 29, 0.85)',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderTopWidth: 1,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   startButtonText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

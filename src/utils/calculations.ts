@@ -4,10 +4,14 @@ export interface UserProfile {
   height_cm: number;
   weight_kg: number;
   activity_level: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-  fitness_goal: 'lose' | 'maintain' | 'gain' | 'recomposition';
+  fitness_goal: 'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance';
   full_name?: string;
   gender?: 'male' | 'female' | 'non_binary' | 'other' | 'prefer_not_to_say';
   experience_level?: 'beginner' | 'intermediate' | 'advanced';
+  workout_frequency?: '0-1' | '2-3' | '4-5' | '6+';
+  preferred_workout_environment?: 'gym' | 'home' | 'outdoor' | 'calisthenics';
+  injuries_limitations?: string;
+  dietary_preference?: 'veg' | 'non_veg' | 'vegan' | 'eggetarian';
 }
 
 export interface Exercise {
@@ -20,6 +24,9 @@ export interface Exercise {
   form_tips?: string[];
   common_mistakes?: string[];
   image_url?: string;
+  user_id?: string;
+  is_custom?: boolean;
+  muscleFocusNote?: string;
 }
 
 export interface NutritionMetrics {
@@ -97,6 +104,9 @@ export function calculateNutritionMetrics(profile: UserProfile): NutritionMetric
       break;
     case 'recomposition':
       dailyCalorieGoal = roundedTdee;
+      break;
+    case 'endurance':
+      dailyCalorieGoal = roundedTdee; // Maintenance/sustained energy for endurance
       break;
   }
   const roundedCalorieGoal = Math.round(dailyCalorieGoal);

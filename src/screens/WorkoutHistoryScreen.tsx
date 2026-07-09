@@ -30,6 +30,7 @@ interface WorkoutItem {
   groupedExercises: Array<{
     name: string;
     muscleGroup: string;
+    notes?: string | null;
     sets: Array<{
       set_number: number;
       reps: number;
@@ -38,28 +39,39 @@ interface WorkoutItem {
   }>;
 }
 
+interface GroupedDateWorkouts {
+  date: string;
+  muscleGroupsText: string;
+  exercisesCount: number;
+  workouts: WorkoutItem[];
+}
+
 export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProps) {
   const session = route.params.session;
   const user = session.user;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [loading, setLoading] = useState(true);
-  const [workouts, setWorkouts] = useState<WorkoutItem[]>([]);
-  const [expandedWorkoutId, setExpandedWorkoutId] = useState<string | null>(null);
+  const [workouts, setWorkouts] = useState<GroupedDateWorkouts[]>([]);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const groupSetsByExercise = (sets: any[]) => {
-    const groups: { [key: string]: { name: string; muscleGroup: string; sets: any[] } } = {};
+    const groups: { [key: string]: { name: string; muscleGroup: string; notes?: string | null; sets: any[] } } = {};
     
     sets.forEach((set) => {
       const name = set.exercises?.name || set.exercise_name || 'Unknown Exercise';
       const muscleGroup = set.exercises?.muscle_group || set.muscle_group || 'other';
+      const notes = set.notes || null;
 
       if (!groups[name]) {
         groups[name] = {
           name,
           muscleGroup,
+          notes,
           sets: [],
         };
+      } else if (notes && !groups[name].notes) {
+        groups[name].notes = notes;
       }
       groups[name].sets.push({
         set_number: set.set_number,
@@ -76,17 +88,58 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
     return Object.values(groups);
   };
 
+  const groupWorkoutsByDate = (workoutsList: WorkoutItem[]): GroupedDateWorkouts[] => {
+    const map: { [date: string]: GroupedDateWorkouts } = {};
+    const orderedDates: string[] = [];
+
+    workoutsList.forEach((w) => {
+      const date = w.date;
+      if (!map[date]) {
+        map[date] = {
+          date,
+          muscleGroupsText: '',
+          exercisesCount: 0,
+          workouts: [],
+        };
+        orderedDates.push(date);
+      }
+      map[date].workouts.push(w);
+    });
+
+    orderedDates.forEach((date) => {
+      const dayGroup = map[date];
+      const muscleGroups = new Set<string>();
+      let totalExercises = 0;
+
+      dayGroup.workouts.forEach((w) => {
+        totalExercises += w.groupedExercises.length;
+        w.groupedExercises.forEach((ge) => {
+          if (ge.muscleGroup) {
+            const mg = ge.muscleGroup.charAt(0).toUpperCase() + ge.muscleGroup.slice(1).toLowerCase();
+            muscleGroups.add(mg);
+          }
+        });
+      });
+
+      dayGroup.exercisesCount = totalExercises;
+      dayGroup.muscleGroupsText = Array.from(muscleGroups).join(' + ') || 'General';
+    });
+
+    return orderedDates.map((d) => map[d]);
+  };
+
   const fetchWorkoutsHistory = async () => {
     if (user.id === 'mock-user-id-12345') {
       // Load mock items
-      const formattedMock = MOCK_WORKOUTS.map((mw) => ({
+      const formattedMock: WorkoutItem[] = MOCK_WORKOUTS.map((mw) => ({
         id: mw.id,
         date: mw.date,
         notes: mw.notes,
         exercisesCount: mw.exercisesCount,
         groupedExercises: groupSetsByExercise(mw.sets),
       }));
-      setWorkouts(formattedMock);
+      const grouped = groupWorkoutsByDate(formattedMock);
+      setWorkouts(grouped);
       setLoading(false);
       return;
     }
@@ -103,6 +156,7 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
             set_number,
             reps,
             weight_kg,
+            notes,
             exercises (
               name,
               muscle_group
@@ -126,7 +180,8 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
         };
       });
 
-      setWorkouts(formattedData);
+      const grouped = groupWorkoutsByDate(formattedData);
+      setWorkouts(grouped);
     } catch (err) {
       console.error('Error fetching workout history:', err);
     } finally {
@@ -138,8 +193,8 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
     fetchWorkoutsHistory();
   }, []);
 
-  const toggleExpand = (id: string) => {
-    setExpandedWorkoutId((prev) => (prev === id ? null : id));
+  const toggleExpand = (date: string) => {
+    setExpandedDate((prev) => (prev === date ? null : date));
   };
 
   const formatDisplayDate = (dateStr: string) => {
@@ -177,50 +232,62 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
       ) : (
         <FlatList
           data={workouts}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.date}
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => {
-            const isExpanded = expandedWorkoutId === item.id;
+            const isExpanded = expandedDate === item.date;
             return (
               <View style={styles.workoutCard}>
-                <TouchableOpacity style={styles.cardHeader} onPress={() => toggleExpand(item.id)}>
+                <TouchableOpacity style={styles.cardHeader} onPress={() => toggleExpand(item.date)}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.workoutDate}>{formatDisplayDate(item.date)}</Text>
                     <Text style={styles.workoutSummary}>
+                      {item.muscleGroupsText}
+                    </Text>
+                    <Text style={styles.workoutExercisesCount}>
                       {item.exercisesCount} exercise{item.exercisesCount !== 1 ? 's' : ''} logged
                     </Text>
-                    {item.notes && !isExpanded && (
-                      <Text style={styles.notesPreview} numberOfLines={1}>
-                        Notes: {item.notes}
-                      </Text>
-                    )}
                   </View>
                   <Text style={styles.expandIndicator}>{isExpanded ? '▲' : '▼'}</Text>
                 </TouchableOpacity>
 
                 {isExpanded && (
                   <View style={styles.detailsBox}>
-                    {item.notes && (
-                      <View style={styles.notesContainer}>
-                        <Text style={styles.notesLabel}>Notes</Text>
-                        <Text style={styles.notesContent}>{item.notes}</Text>
-                      </View>
-                    )}
+                    {item.workouts.map((w, wIdx) => (
+                      <View key={w.id} style={[styles.singleWorkoutContainer, wIdx > 0 && styles.multiWorkoutSeparator]}>
+                        {item.workouts.length > 1 && (
+                          <Text style={styles.workoutInstanceHeader}>Session #{item.workouts.length - wIdx}</Text>
+                        )}
+                        {w.notes && (
+                          <View style={styles.notesContainer}>
+                            <Text style={styles.notesLabel}>Notes</Text>
+                            <Text style={styles.notesContent}>{w.notes}</Text>
+                          </View>
+                        )}
 
-                    {item.groupedExercises.map((ge) => (
-                      <View key={ge.name} style={styles.exerciseDetailItem}>
-                        <Text style={styles.exerciseName}>{ge.name}</Text>
-                        <Text style={styles.exerciseMuscle}>{ge.muscleGroup}</Text>
-                        
-                        <View style={styles.setsGrid}>
-                          {ge.sets.map((set) => (
-                            <View key={set.set_number} style={styles.setRow}>
-                              <Text style={styles.setNum}>Set {set.set_number}</Text>
-                              <Text style={styles.setWeight}>{set.weight_kg} kg</Text>
-                              <Text style={styles.setReps}>x {set.reps}</Text>
+                        {w.groupedExercises.map((ge) => (
+                          <View key={ge.name} style={styles.exerciseDetailItem}>
+                            <Text style={styles.exerciseName}>{ge.name}</Text>
+                            <Text style={styles.exerciseMuscle}>{ge.muscleGroup}</Text>
+                            
+                            {ge.notes ? (
+                              <View style={styles.exerciseNotesBox}>
+                                <Text style={styles.exerciseNotesLabel}>EXERCISE NOTES</Text>
+                                <Text style={styles.exerciseNotesContent}>{ge.notes}</Text>
+                              </View>
+                            ) : null}
+
+                            <View style={styles.setsGrid}>
+                              {ge.sets.map((set) => (
+                                <View key={set.set_number} style={styles.setRow}>
+                                  <Text style={styles.setNum}>Set {set.set_number}</Text>
+                                  <Text style={styles.setWeight}>{set.weight_kg} kg</Text>
+                                  <Text style={styles.setReps}>x {set.reps}</Text>
+                                </View>
+                              ))}
                             </View>
-                          ))}
-                        </View>
+                          </View>
+                        ))}
                       </View>
                     ))}
                   </View>
@@ -237,11 +304,11 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -252,7 +319,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   backBtn: {
     paddingVertical: 6,
@@ -292,7 +359,7 @@ const styles = StyleSheet.create({
   workoutCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 24, // highly rounded corners
     marginBottom: 14,
     overflow: 'hidden',
@@ -326,14 +393,14 @@ const styles = StyleSheet.create({
   },
   detailsBox: {
     borderTopWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 16,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   notesContainer: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -354,7 +421,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   exerciseName: {
     fontSize: 15,
@@ -369,13 +436,35 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 10,
   },
+  exerciseNotesBox: {
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1,
+    borderColor: '#3D4A3D',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  exerciseNotesLabel: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  exerciseNotesContent: {
+    color: '#E0E0E0',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+  },
   setsGrid: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   setRow: {
     flexDirection: 'row',
@@ -403,5 +492,29 @@ const styles = StyleSheet.create({
     width: 40,
     textAlign: 'right',
     fontWeight: '700',
+  },
+  workoutExercisesCount: {
+    fontSize: 11,
+    color: '#7A7A7A',
+    fontWeight: '800',
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  singleWorkoutContainer: {
+    paddingVertical: 8,
+  },
+  multiWorkoutSeparator: {
+    borderTopWidth: 1.5,
+    borderColor: '#3D4A3D',
+    marginTop: 16,
+    paddingTop: 16,
+  },
+  workoutInstanceHeader: {
+    color: '#D4FF13',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
 });

@@ -13,6 +13,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { DEV_DEMO_EMAIL, DEV_DEMO_OTP, DEV_DEMO_PASSWORD } from '../config/devConfig';
 
 export default function LoginScreen() {
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
@@ -36,6 +37,12 @@ export default function LoginScreen() {
 
     if (authMethod === 'phone' && !identifier.startsWith('+')) {
       setError('Phone number must include country code starting with + (e.g. +1234567890)');
+      return;
+    }
+
+    if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
+      setOtpSent(true);
+      setMessage(`A 6-digit verification code has been sent to your ${authMethod}.`);
       return;
     }
 
@@ -66,6 +73,24 @@ export default function LoginScreen() {
     }
 
     const identifier = authMethod === 'email' ? email.trim() : phone.trim();
+
+    if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
+      setLoading(true);
+      try {
+        // Sign in using local client-side session mocking
+        (supabase.auth as any).setMockSession({
+          user: { id: 'mock-user-id-12345', email: DEV_DEMO_EMAIL },
+          access_token: 'mock-access-token',
+          refresh_token: 'mock-refresh-token',
+        });
+      } catch (err: any) {
+        setError(err.message || 'Verification failed. Please check the credentials.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -92,7 +117,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <StatusBar barStyle="light-content" backgroundColor="#0D141D" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -174,7 +199,17 @@ export default function LoginScreen() {
 
                 {authMethod === 'email' ? (
                   <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+                    <View style={styles.inputLabelRow}>
+                      <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
+                      {__DEV__ && (
+                        <TouchableOpacity
+                          onPress={() => setEmail(DEV_DEMO_EMAIL)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.devLinkText}>Use Demo Account</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     <TextInput
                       style={styles.input}
                       placeholder="hello@govio.fit"
@@ -212,7 +247,7 @@ export default function LoginScreen() {
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#121212" />
+                    <ActivityIndicator color="#0D141D" />
                   ) : (
                     <Text style={styles.primaryButtonText}>Send Passcode</Text>
                   )}
@@ -221,7 +256,12 @@ export default function LoginScreen() {
             ) : (
               <>
                 <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>6-DIGIT VERIFICATION CODE</Text>
+                  <View style={styles.inputLabelRow}>
+                    <Text style={styles.inputLabel}>6-DIGIT VERIFICATION CODE</Text>
+                    {__DEV__ && email.trim().toLowerCase() === DEV_DEMO_EMAIL.toLowerCase() && (
+                      <Text style={styles.devHintText}>Passcode: {DEV_DEMO_OTP}</Text>
+                    )}
+                  </View>
                   <TextInput
                     style={[styles.input, styles.otpInput]}
                     placeholder="000000"
@@ -242,7 +282,7 @@ export default function LoginScreen() {
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#121212" />
+                    <ActivityIndicator color="#0D141D" />
                   ) : (
                     <Text style={styles.primaryButtonText}>Verify & Login</Text>
                   )}
@@ -269,7 +309,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   keyboardView: {
     flex: 1,
@@ -306,7 +346,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -327,7 +367,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
@@ -354,22 +394,38 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 24,
   },
+  inputLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   inputLabel: {
     fontSize: 11,
     fontWeight: '800',
     color: '#A0A0A0',
-    marginBottom: 8,
     letterSpacing: 1,
   },
+  devLinkText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D4FF13',
+    textTransform: 'uppercase',
+  },
+  devHintText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#A0A0A0',
+  },
   input: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     color: '#FFFFFF',
     borderRadius: 16, // highly rounded inputs matching Stitch
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 15,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   otpInput: {
     textAlign: 'center',
@@ -400,7 +456,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

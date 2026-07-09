@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions, Modal, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { Exercise } from '../utils/calculations';
+import { MOCK_EXERCISES } from '../data/exercisesData';
+import { getLocalCustomExercises, addLocalCustomExercise } from '../utils/customExercises';
+import { triggerSuccessHaptic } from '../utils/haptics';
 
 type MuscleDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -21,6 +24,15 @@ export default function MuscleDetailScreen() {
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal & Form States
+  const [modalVisible, setModalVisible] = useState(false);
+  const [exName, setExName] = useState('');
+  const [primaryTarget, setPrimaryTarget] = useState('');
+  const [secondaryTargets, setSecondaryTargets] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [formTips, setFormTips] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const getExerciseImageUrl = (muscleGroup: string) => {
     const muscle = muscleGroup.toLowerCase();
@@ -42,125 +54,7 @@ export default function MuscleDetailScreen() {
     return 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=150';
   };
 
-  const MOCK_EXERCISES: Exercise[] = [
-    {
-      id: 'ex-1',
-      name: 'Bench Press',
-      muscle_group: 'Chest',
-      primary_muscle: 'Pectoralis Major',
-      secondary_muscles: ['Triceps', 'Anterior Deltoids'],
-      instructions: ['Lie flat on the bench.', 'Lower bar to chest.', 'Push straight up.'],
-      form_tips: ['Retract scapula.'],
-      common_mistakes: ['Flaring elbows.'],
-      image_url: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600'
-    },
-    {
-      id: 'ex-2',
-      name: 'Squat',
-      muscle_group: 'Legs',
-      primary_muscle: 'Quadriceps',
-      secondary_muscles: ['Glutes', 'Hamstrings'],
-      instructions: ['Bar on back.', 'Squat deep.', 'Stand up.'],
-      form_tips: ['Knees out.'],
-      common_mistakes: ['Heels lifting.'],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    },
-    {
-      id: 'ex-3',
-      name: 'Deadlift',
-      muscle_group: 'Legs',
-      primary_muscle: 'Hamstrings & Glutes',
-      secondary_muscles: ['Erector Spinae', 'Latissimus Dorsi'],
-      instructions: ['Flatten back.', 'Pull bar up close shins.', 'Lock out hips.'],
-      form_tips: ['Lats tight.'],
-      common_mistakes: ['Rounding back.'],
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-    },
-    {
-      id: 'ex-4',
-      name: 'Overhead Press',
-      muscle_group: 'Shoulders',
-      primary_muscle: 'Anterior Deltoids',
-      secondary_muscles: ['Triceps'],
-      instructions: ['Unrack collarbones.', 'Press straight overhead.', 'Lock elbows.'],
-      form_tips: ['Squeeze core.'],
-      common_mistakes: ['Arching back.'],
-      image_url: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600'
-    },
-    {
-      id: 'ex-5',
-      name: 'Pull-up',
-      muscle_group: 'Back',
-      primary_muscle: 'Latissimus Dorsi',
-      secondary_muscles: ['Biceps'],
-      instructions: ['Hang straight.', 'Chest to bar.', 'Lower controlled.'],
-      form_tips: ['Drive elbows down.'],
-      common_mistakes: ['Kipping.'],
-      image_url: 'https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600'
-    },
-    {
-      id: 'ex-6',
-      name: 'Bicep Curl',
-      muscle_group: 'Biceps',
-      primary_muscle: 'Biceps Brachii',
-      secondary_muscles: ['Brachialis'],
-      instructions: ['Hold dumbbells.', 'Curl upward.', 'Lower slow.'],
-      form_tips: ['Keep elbows tucked.'],
-      common_mistakes: ['Swinging arms.'],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-7',
-      name: 'Tricep Dip',
-      muscle_group: 'Triceps',
-      primary_muscle: 'Triceps Brachii',
-      secondary_muscles: ['Chest'],
-      instructions: ['On bars.', 'Lower to 90 degrees.', 'Push up.'],
-      form_tips: ['Control descent.'],
-      common_mistakes: ['Shrugging shoulders.'],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-8',
-      name: 'Abs Crunch',
-      muscle_group: 'Abs',
-      primary_muscle: 'Rectus Abdominis',
-      instructions: ['Lie on back.', 'Lift shoulders.', 'Squeeze core.'],
-      form_tips: ['Look forward.'],
-      common_mistakes: ['Pulling neck.'],
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-    },
-    {
-      id: 'ex-9',
-      name: 'Wrist Curl',
-      muscle_group: 'Forearms',
-      primary_muscle: 'Wrist Flexors',
-      instructions: ['Rest forearms bench.', 'Curl wrists up.', 'Lower slow.'],
-      form_tips: ['Slow pace.'],
-      common_mistakes: ['Lifting arms.'],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-10',
-      name: 'Hip Thrust',
-      muscle_group: 'Glutes',
-      primary_muscle: 'Gluteus Maximus',
-      instructions: ['Upper back on bench.', 'Drive hips up.', 'Squeeze glutes.'],
-      form_tips: ['Shin vertical.'],
-      common_mistakes: ['Hyperextension.'],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    },
-    {
-      id: 'ex-11',
-      name: 'Calf Raise',
-      muscle_group: 'Calves',
-      primary_muscle: 'Gastrocnemius',
-      instructions: ['Stand on elevated block.', 'Lower heels.', 'Push to toes.'],
-      form_tips: ['Pause top.'],
-      common_mistakes: ['Bouncing.'],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    }
-  ];
+
 
   const fetchExercises = async () => {
     if (!user || user.id === 'mock-user-id-12345') {
@@ -180,7 +74,27 @@ export default function MuscleDetailScreen() {
         if (cat === 'calves') return muscle === 'calves';
         return muscle === cat;
       });
-      setExercises(filtered);
+
+      // Merge with local custom exercises
+      const localCustoms = await getLocalCustomExercises();
+      const filteredLocal = localCustoms.filter(ex => {
+        const cat = muscleGroup.toLowerCase();
+        const muscle = ex.muscle_group.toLowerCase();
+        
+        if (cat === 'chest') return muscle === 'chest';
+        if (cat === 'back') return muscle === 'back';
+        if (cat === 'shoulders') return muscle === 'shoulders';
+        if (cat === 'legs') return muscle === 'legs';
+        if (cat === 'biceps') return muscle === 'biceps';
+        if (cat === 'triceps') return muscle === 'triceps';
+        if (cat === 'forearms') return muscle === 'forearms';
+        if (cat === 'abs') return muscle === 'abs';
+        if (cat === 'glutes') return muscle === 'glutes';
+        if (cat === 'calves') return muscle === 'calves';
+        return muscle === cat;
+      });
+
+      setExercises([...filtered, ...filteredLocal]);
       setLoading(false);
       return;
     }
@@ -231,9 +145,86 @@ export default function MuscleDetailScreen() {
     }
   };
 
+  const handleSaveExercise = async () => {
+    if (!exName.trim()) {
+      Alert.alert('Validation Error', 'Exercise Name is required.');
+      return;
+    }
+    if (!primaryTarget.trim()) {
+      Alert.alert('Validation Error', 'Primary Target Muscle is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const parsedSecondary = secondaryTargets
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      const parsedInstructions = instructions
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      const parsedTips = formTips
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const exercisePayload = {
+        name: exName.trim(),
+        muscle_group: muscleGroup,
+        primary_muscle: primaryTarget.trim(),
+        secondary_muscles: parsedSecondary,
+        instructions: parsedInstructions,
+        form_tips: parsedTips,
+        common_mistakes: [] as string[],
+        image_url: ''
+      };
+
+      if (!user || user.id === 'mock-user-id-12345') {
+        await addLocalCustomExercise(exercisePayload);
+        triggerSuccessHaptic();
+        Alert.alert('Success', 'Custom exercise added successfully.');
+      } else {
+        const { error } = await supabase
+          .from('exercises')
+          .insert({
+            id: `custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            ...exercisePayload,
+            user_id: user.id,
+            is_custom: true
+          });
+        
+        if (error) throw error;
+        triggerSuccessHaptic();
+        Alert.alert('Success', 'Custom exercise added successfully.');
+      }
+
+      setExName('');
+      setPrimaryTarget('');
+      setSecondaryTargets('');
+      setInstructions('');
+      setFormTips('');
+      setModalVisible(false);
+      fetchExercises();
+
+    } catch (err: any) {
+      console.error('Error adding custom exercise:', err);
+      Alert.alert('Error', err.message || 'Failed to add custom exercise.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     fetchExercises();
-  }, [muscleGroup]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchExercises();
+    });
+    return unsubscribe;
+  }, [muscleGroup, navigation]);
 
   const { height: windowHeight } = useWindowDimensions();
   const scaleStyle = Platform.OS === 'web' && windowHeight < 900
@@ -292,7 +283,10 @@ export default function MuscleDetailScreen() {
                       resizeMode="cover"
                     />
                     <View style={styles.cardBody}>
-                      <Text style={styles.cardMuscleTag}>{exercise.primary_muscle || exercise.muscle_group.toUpperCase()}</Text>
+                      <Text style={styles.cardMuscleTag}>
+                        {exercise.primary_muscle || exercise.muscle_group.toUpperCase()}
+                        {exercise.is_custom && <Text style={{ color: '#F97316' }}> • CUSTOM</Text>}
+                      </Text>
                       <Text style={styles.cardTitleText}>{exercise.name}</Text>
                       <View style={styles.cardActionRow}>
                         <Text style={styles.cardLink}>VIEW DETAILS</Text>
@@ -303,9 +297,138 @@ export default function MuscleDetailScreen() {
                 ))}
               </View>
             )}
+
+            <TouchableOpacity 
+              style={styles.addBtn}
+              activeOpacity={0.8}
+              onPress={() => setModalVisible(true)}
+            >
+              <Text style={styles.addBtnText}>+ ADD EXERCISE</Text>
+            </TouchableOpacity>
           </ScrollView>
         )}
       </View>
+
+      {/* Add Exercise Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.modalContent}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity 
+                  style={styles.modalCancelBtn} 
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelBtnText}>CANCEL</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>ADD EXERCISE</Text>
+                <View style={{ width: 60 }} />
+              </View>
+
+              <ScrollView 
+                contentContainerStyle={styles.modalFormScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Name Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>EXERCISE NAME *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Incline Cable Press"
+                    placeholderTextColor="#7A7A7A"
+                    value={exName}
+                    onChangeText={setExName}
+                  />
+                </View>
+
+                {/* Muscle Group (Read-Only) */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>MUSCLE GROUP</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputDisabled]}
+                    value={muscleGroup}
+                    editable={false}
+                  />
+                </View>
+
+                {/* Primary Target Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>PRIMARY TARGET *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Upper Chest"
+                    placeholderTextColor="#7A7A7A"
+                    value={primaryTarget}
+                    onChangeText={setPrimaryTarget}
+                  />
+                </View>
+
+                {/* Secondary Targets Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>SECONDARY TARGETS (OPTIONAL)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Triceps, Anterior Deltoids (comma separated)"
+                    placeholderTextColor="#7A7A7A"
+                    value={secondaryTargets}
+                    onChangeText={setSecondaryTargets}
+                  />
+                </View>
+
+                {/* How-To-Perform Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>HOW TO PERFORM (OPTIONAL, ONE STEP PER LINE)</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputMultiline]}
+                    multiline={true}
+                    numberOfLines={4}
+                    placeholder="e.g. Adjust cables to chest height.&#10;Step forward and press handle."
+                    placeholderTextColor="#7A7A7A"
+                    value={instructions}
+                    onChangeText={setInstructions}
+                  />
+                </View>
+
+                {/* Pro Form Tips Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>PRO FORM TIPS (OPTIONAL, ONE TIP PER LINE)</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputMultiline]}
+                    multiline={true}
+                    numberOfLines={3}
+                    placeholder="e.g. Keep shoulder blades squeezed.&#10;Exhale as you press."
+                    placeholderTextColor="#7A7A7A"
+                    value={formTips}
+                    onChangeText={setFormTips}
+                  />
+                </View>
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  style={[styles.modalSubmitBtn, submitting && styles.modalSubmitBtnDisabled]}
+                  onPress={handleSaveExercise}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#0D141D" />
+                  ) : (
+                    <Text style={styles.modalSubmitBtnText}>SAVE EXERCISE</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -313,7 +436,7 @@ export default function MuscleDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   innerContainer: {
     flex: 1,
@@ -327,7 +450,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#2D2D37',
+    borderBottomColor: '#3D4A3D',
   },
   backButton: {
     marginRight: 16,
@@ -385,7 +508,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     marginBottom: 16,
     overflow: 'hidden',
   },
@@ -417,7 +540,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#2D2D37',
+    borderTopColor: '#3D4A3D',
     paddingTop: 8,
   },
   cardLink: {
@@ -430,5 +553,119 @@ const styles = StyleSheet.create({
     color: '#D4FF13',
     fontSize: 12,
     fontWeight: '900',
+  },
+  addBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 30,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  addBtnText: {
+    color: '#0D141D',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#0D141D',
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: '#0D141D',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#3D4A3D',
+  },
+  modalCancelBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#7A7A7A',
+    borderRadius: 8,
+  },
+  modalCancelBtnText: {
+    color: '#A0A0A0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  modalFormScroll: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  formInputGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  formInput: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  formInputDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#151C25',
+  },
+  formInputMultiline: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  modalSubmitBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 30,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalSubmitBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalSubmitBtnText: {
+    color: '#0D141D',
+    fontSize: 15,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

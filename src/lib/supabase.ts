@@ -49,3 +49,75 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// DEV-ONLY: Client-Side Auth Bypass Mocking
+if (__DEV__) {
+  let mockSession: any = null;
+  const listeners = new Set<any>();
+
+  const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
+  const originalOnAuthStateChange = supabase.auth.onAuthStateChange.bind(supabase.auth);
+  const originalSignOut = supabase.auth.signOut.bind(supabase.auth);
+
+  // Load persisted mock session from storage adapter on start
+  storageAdapter.getItem('govio_mock_session').then((val) => {
+    if (val) {
+      try {
+        mockSession = JSON.parse(val);
+        listeners.forEach((callback) => callback('SIGNED_IN', mockSession));
+      } catch (e) {
+        console.error('Failed to parse persisted mock session:', e);
+      }
+    }
+  });
+
+  supabase.auth.getSession = async () => {
+    if (mockSession) {
+      return { data: { session: mockSession }, error: null };
+    }
+    return originalGetSession();
+  };
+
+  supabase.auth.onAuthStateChange = (callback) => {
+    listeners.add(callback);
+    // If there is already a mock session, trigger callback immediately
+    if (mockSession) {
+      callback('SIGNED_IN', mockSession);
+    }
+
+    const result = originalOnAuthStateChange(callback as any);
+    return {
+      data: {
+        subscription: {
+          id: result.data.subscription.id,
+          callback: result.data.subscription.callback,
+          unsubscribe: () => {
+            listeners.delete(callback);
+            result.data.subscription.unsubscribe();
+          },
+        },
+      },
+    } as any;
+  };
+
+  supabase.auth.signOut = async () => {
+    if (mockSession) {
+      (supabase.auth as any).setMockSession(null);
+      return { error: null };
+    }
+    return originalSignOut();
+  };
+
+  // Helper method to trigger a mock login session from LoginScreen
+  (supabase.auth as any).setMockSession = (session: any) => {
+    mockSession = session;
+    if (session) {
+      storageAdapter.setItem('govio_mock_session', JSON.stringify(session));
+    } else {
+      storageAdapter.removeItem('govio_mock_session');
+    }
+    listeners.forEach((callback) => {
+      callback(session ? 'SIGNED_IN' : 'SIGNED_OUT', session);
+    });
+  };
+}

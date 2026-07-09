@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Text, useWindowDimensions, Platform } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, TouchableOpacity, Text, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -16,13 +16,46 @@ import WelcomeScreen from './src/screens/WelcomeScreen';
 import WorkoutDetailScreen from './src/screens/WorkoutDetailScreen';
 import MuscleDetailScreen from './src/screens/MuscleDetailScreen';
 import ExerciseDetailScreen from './src/screens/ExerciseDetailScreen';
-import { NutritionMetrics } from './src/utils/calculations';
+import StartWorkoutScreen from './src/screens/StartWorkoutScreen';
+import ActiveWorkoutScreen from './src/screens/ActiveWorkoutScreen';
+import { NutritionMetrics, calculateNutritionMetrics } from './src/utils/calculations';
+import { getPendingOnboarding, setPendingOnboarding } from './src/utils/pendingOnboarding';
+
+// Inject mobile-frame CSS immediately at module load (before first render).
+// This constrains the #root element at the DOM level so React Navigation
+// native-stack screens, modals, and portals cannot escape the phone column.
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const s = document.createElement('style');
+  s.setAttribute('data-govio', 'web-frame');
+  s.textContent = `
+    html, body {
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: #111015 !important;
+      overflow: hidden !important;
+    }
+    #root {
+      max-width: 430px !important;
+      height: 100vh !important;
+      margin: 0 auto !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      background-color: #0D141D !important;
+      box-shadow: 0 0 40px rgba(0,0,0,0.6) !important;
+      position: relative !important;
+      border-left: 1px solid #1E1E24 !important;
+      border-right: 1px solid #1E1E24 !important;
+    }
+  `;
+  document.head.appendChild(s);
+}
 
 export type RootStackParamList = {
   Welcome: undefined;
-  Login: undefined;
+  Login: { onboardingData?: any } | undefined;
   Home: { session: Session };
-  Onboarding: { session: Session; onComplete: (metrics: NutritionMetrics) => void };
+  Onboarding: { session?: Session; onComplete?: (metrics: NutritionMetrics) => void } | undefined;
   Results: { session: Session; metrics: NutritionMetrics; onFinish: () => void };
   LogWorkout: { session: Session; initialExercises?: any[] };
   WorkoutHistory: { session: Session };
@@ -39,12 +72,14 @@ export type RootStackParamList = {
   };
   MuscleDetail: { session: Session; muscleGroup: string };
   ExerciseDetail: { session: Session; exerciseId: string; name: string; muscleGroup: string };
+  StartWorkout: { session: Session };
+  ActiveWorkout: { session: Session; exercises: any[]; workoutName: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // Set to true to bypass real Supabase Auth during local development testing
-const BYPASS_AUTH = __DEV__ && true;
+const BYPASS_AUTH = __DEV__ && false;
 
 const MOCK_SESSION: Session = {
   access_token: 'mock-access-token',
@@ -87,9 +122,6 @@ export default function App() {
   const [metrics, setMetrics] = useState<NutritionMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isWebDesktop = Platform.OS === 'web' && windowWidth > 480;
-
   const checkUserProfile = async (currentSession: Session | null) => {
     if (!currentSession || !currentSession.user) {
       setHasProfile(null);
@@ -98,10 +130,8 @@ export default function App() {
     }
 
     // Bypass database check for mock user in development
-    if (BYPASS_AUTH && currentSession.user.id === 'mock-user-id-12345') {
-      if (hasProfile === null) {
-        setHasProfile(false); // start on onboarding flow
-      }
+    if (currentSession.user.id === 'mock-user-id-12345') {
+      setHasProfile(true);
       setLoading(false);
       return;
     }
@@ -144,13 +174,78 @@ export default function App() {
     });
 
     // Listen for auth state changes (sign in, sign out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       if (newSession) {
-        if (event === 'SIGNED_IN') {
+        // Retrieve in-memory pre-auth onboarding questionnaire results
+        const pendingData = getPendingOnboarding();
+        if (pendingData) {
           setLoading(true);
+          try {
+            // 1. Calculate nutrition metrics using biometrics
+            const calculatedMetrics = calculateNutritionMetrics(pendingData);
+
+            // Bypass database writes for mock user in development
+            if (newSession.user.id === 'mock-user-id-12345') {
+              await new Promise((resolve) => setTimeout(resolve, 800)); // simulate latency
+              setPendingOnboarding(null);
+              setMetrics(calculatedMetrics);
+              setHasProfile(true);
+              setShowResults(true);
+              setLoading(false);
+              return;
+            }
+
+            // 2. Write all profile fields in a single write statement
+            const { error: insertProfileError } = await supabase.from('user_profiles').upsert({
+              id: newSession.user.id,
+              sex: pendingData.sex,
+              date_of_birth: pendingData.date_of_birth,
+              height_cm: Math.round(pendingData.height_cm),
+              weight_kg: Math.round(pendingData.weight_kg),
+              activity_level: pendingData.activity_level,
+              fitness_goal: pendingData.fitness_goal,
+              full_name: pendingData.full_name,
+              gender: pendingData.gender,
+              experience_level: pendingData.experience_level,
+              workout_frequency: pendingData.workout_frequency,
+              preferred_workout_environment: pendingData.preferred_workout_environment,
+              injuries_limitations: pendingData.injuries_limitations,
+              dietary_preference: pendingData.dietary_preference
+            });
+
+            if (insertProfileError) throw insertProfileError;
+
+            // 3. Write user metrics
+            const { error: insertMetricsError } = await supabase.from('user_metrics').upsert({
+              id: newSession.user.id,
+              bmi: calculatedMetrics.bmi,
+              bmr: calculatedMetrics.bmr,
+              tdee: calculatedMetrics.tdee,
+              daily_calorie_goal: calculatedMetrics.daily_calorie_goal,
+              protein_g: calculatedMetrics.protein_g,
+              fat_g: calculatedMetrics.fat_g,
+              carbs_g: calculatedMetrics.carbs_g,
+            });
+
+            if (insertMetricsError) throw insertMetricsError;
+
+            // 4. Clear pending onboarding from memory
+            setPendingOnboarding(null);
+
+            // 5. Update state to redirect post-auth
+            setMetrics(calculatedMetrics);
+            setHasProfile(true);
+            setShowResults(true);
+          } catch (err) {
+            console.error('Error saving onboarding data to database:', err);
+            setHasProfile(false);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          checkUserProfile(newSession);
         }
-        checkUserProfile(newSession);
       } else {
         setHasProfile(null);
         setLoading(false);
@@ -165,7 +260,7 @@ export default function App() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#D4FF13" />
         <StatusBar style="light" />
       </View>
     );
@@ -175,7 +270,13 @@ export default function App() {
     <View style={{ flex: 1 }}>
       <NavigationContainer>
         <StatusBar style="light" />
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator 
+          screenOptions={{ 
+            headerShown: false,
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: '#0D141D' },
+          }}
+        >
           {session && session.user ? (
             hasProfile ? (
               showResults && metrics ? (
@@ -222,20 +323,21 @@ export default function App() {
                     name="ExerciseDetail" 
                     component={ExerciseDetailScreen} 
                   />
+                  <Stack.Screen 
+                    name="StartWorkout" 
+                    component={StartWorkoutScreen} 
+                  />
+                  <Stack.Screen 
+                    name="ActiveWorkout" 
+                    component={ActiveWorkoutScreen} 
+                  />
                 </>
               )
             ) : (
               <Stack.Screen 
                 name="Onboarding" 
                 component={OnboardingScreen} 
-                initialParams={{ 
-                  session, 
-                  onComplete: (calculatedMetrics) => {
-                    setMetrics(calculatedMetrics);
-                    setHasProfile(true);
-                    setShowResults(true);
-                  } 
-                }}
+                initialParams={{ session }}
               />
             )
           ) : (
@@ -245,6 +347,10 @@ export default function App() {
                 component={WelcomeScreen} 
               />
               <Stack.Screen 
+                name="Onboarding" 
+                component={OnboardingScreen} 
+              />
+              <Stack.Screen 
                 name="Login" 
                 component={LoginScreen} 
               />
@@ -252,76 +358,8 @@ export default function App() {
           )}
         </Stack.Navigator>
       </NavigationContainer>
-
-      {/* Floating Developer Debug Tool (only in __DEV__) */}
-      {__DEV__ && (
-        <View style={styles.debugContainer}>
-          <Text style={styles.debugTitle}>DEV BYPASS</Text>
-          <View style={styles.debugRow}>
-            <TouchableOpacity 
-              style={[styles.debugButton, !session && styles.debugButtonActive]} 
-              onPress={() => {
-                setSession(null);
-                setHasProfile(null);
-                setShowResults(false);
-              }}
-            >
-              <Text style={styles.debugButtonText}>Login</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.debugButton, session && !hasProfile && styles.debugButtonActive]} 
-              onPress={() => {
-                setSession(MOCK_SESSION);
-                setHasProfile(false);
-                setShowResults(false);
-              }}
-            >
-              <Text style={styles.debugButtonText}>Onboard</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.debugButton, session && hasProfile && showResults && styles.debugButtonActive]} 
-              onPress={() => {
-                setSession(MOCK_SESSION);
-                setHasProfile(true);
-                setMetrics(MOCK_METRICS);
-                setShowResults(true);
-              }}
-            >
-              <Text style={styles.debugButtonText}>Results</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.debugButton, session && hasProfile && !showResults && styles.debugButtonActive]} 
-              onPress={() => {
-                setSession(MOCK_SESSION);
-                setHasProfile(true);
-                setShowResults(false);
-              }}
-            >
-              <Text style={styles.debugButtonText}>Home</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
-
-  if (isWebDesktop) {
-    const basePhoneHeight = 884; // 844 + padding
-    const scale = windowHeight < basePhoneHeight ? (windowHeight - 30) / basePhoneHeight : 1;
-    return (
-      <View style={styles.webDesktopBackground}>
-        <View style={[styles.phoneMockupContainer, { transform: [{ scale }] }]}>
-          <View style={styles.phoneNotchIsland} />
-          <View style={styles.phoneInnerContainer}>
-            {renderAppContent()}
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return renderAppContent();
 }
@@ -329,87 +367,8 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0F0F12',
+    backgroundColor: '#0D141D',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  debugContainer: {
-    position: 'absolute',
-    bottom: 16,
-    left: 12,
-    right: 12,
-    backgroundColor: 'rgba(30, 30, 36, 0.95)',
-    borderRadius: 16,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#8B5CF6',
-    zIndex: 9999,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  debugTitle: {
-    color: '#8B5CF6',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginRight: 6,
-  },
-  debugRow: {
-    flexDirection: 'row',
-    flex: 1,
-    justifyContent: 'space-around',
-  },
-  debugButton: {
-    backgroundColor: '#0F0F12',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2D2D37',
-  },
-  debugButtonActive: {
-    borderColor: '#8B5CF6',
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-  },
-  debugButtonText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  webDesktopBackground: {
-    flex: 1,
-    backgroundColor: '#111015',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  phoneMockupContainer: {
-    width: 390,
-    height: 844,
-    borderRadius: 44,
-    borderWidth: 10,
-    borderColor: '#1E1E24',
-    backgroundColor: '#121212',
-    overflow: 'hidden',
-    position: 'relative',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-  },
-  phoneNotchIsland: {
-    position: 'absolute',
-    top: 6,
-    left: '50%',
-    transform: [{ translateX: -50 }],
-    width: 100,
-    height: 18,
-    backgroundColor: '#1E1E24',
-    borderRadius: 9,
-    zIndex: 99999,
-  },
-  phoneInnerContainer: {
-    flex: 1,
-    backgroundColor: '#121212',
   },
 });

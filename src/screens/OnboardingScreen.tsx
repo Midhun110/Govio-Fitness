@@ -12,10 +12,12 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../utils/calculations';
+import { setPendingOnboarding } from '../utils/pendingOnboarding';
 
 type OnboardingScreenRouteProp = RouteProp<RootStackParamList, 'Onboarding'>;
 
@@ -26,12 +28,17 @@ type OnboardingScreenProps = {
 type SexType = 'male' | 'female';
 type HeightUnitType = 'cm' | 'ft-in';
 type WeightUnitType = 'kg' | 'lb';
-type ActivityLevelType = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
-type FitnessGoalType = 'lose' | 'maintain' | 'gain' | 'recomposition';
+type ActivityLevelType = 'sedentary' | 'light' | 'moderate' | 'active';
+type FitnessGoalType = 'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance';
+type WorkoutFrequencyType = '0-1' | '2-3' | '4-5' | '6+';
+type EnvironmentType = 'gym' | 'home' | 'outdoor' | 'calisthenics';
+type DietaryType = 'veg' | 'non_veg' | 'vegan' | 'eggetarian';
 
 export default function OnboardingScreen({ route }: OnboardingScreenProps) {
-  const { session, onComplete } = route.params;
-  const [step, setStep] = useState(1); // Steps 1 to 7 (Step 3 split into 3A: Height, 3B: Weight)
+  const session = route.params?.session;
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  
+  const [step, setStep] = useState(1); // Steps 1 to 13
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,33 +59,31 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
   const [weightUnit, setWeightUnit] = useState<WeightUnitType>('kg');
   const [weightVal, setWeightVal] = useState(''); // Stores raw input for either kg or lb
   
-  const [activityLevel, setActivityLevel] = useState<ActivityLevelType | null>(null);
   const [fitnessGoal, setFitnessGoal] = useState<FitnessGoalType | null>(null);
+  const [activityLevel, setActivityLevel] = useState<ActivityLevelType | null>(null);
+  const [workoutFrequency, setWorkoutFrequency] = useState<WorkoutFrequencyType | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<'beginner' | 'intermediate' | 'advanced' | null>(null);
+  const [preferredEnvironment, setPreferredEnvironment] = useState<EnvironmentType | null>(null);
+  const [injuriesLimitations, setInjuriesLimitations] = useState('');
+  const [dietaryPreference, setDietaryPreference] = useState<DietaryType | null>(null);
 
   // Get current progress labels and percentage
   const getProgressInfo = (currentStep: number) => {
     switch (currentStep) {
-      case 1: // Name
-        return { label: 'Step 1 of 8', percent: 12 };
-      case 2: // Gender & Sex
-        return { label: 'Step 2 of 8', percent: 25 };
-      case 3: // DOB
-        return { label: 'Step 3 of 8', percent: 37 };
-      case 4: // Height
-        return { label: 'Step 4 of 8', percent: 50 };
-      case 5: // Weight
-        return { label: 'Step 4 of 8', percent: 50 };
-      case 6: // Activity Level
-        return { label: 'Step 5 of 8', percent: 62 };
-      case 7: // Fitness Goal
-        return { label: 'Step 6 of 8', percent: 75 };
-      case 8: // Experience Level
-        return { label: 'Step 7 of 8', percent: 87 };
-      case 9: // Confirmation
-        return { label: 'Step 8 of 8', percent: 100 };
-      default:
-        return { label: '', percent: 0 };
+      case 1: return { label: 'Step 1 of 13', percent: 8 };
+      case 2: return { label: 'Step 2 of 13', percent: 15 };
+      case 3: return { label: 'Step 3 of 13', percent: 23 };
+      case 4: return { label: 'Step 4 of 13', percent: 31 };
+      case 5: return { label: 'Step 5 of 13', percent: 38 };
+      case 6: return { label: 'Step 6 of 13', percent: 46 };
+      case 7: return { label: 'Step 7 of 13', percent: 54 };
+      case 8: return { label: 'Step 8 of 13', percent: 62 };
+      case 9: return { label: 'Step 9 of 13', percent: 69 };
+      case 10: return { label: 'Step 10 of 13', percent: 77 };
+      case 11: return { label: 'Step 11 of 13', percent: 85 };
+      case 12: return { label: 'Step 12 of 13', percent: 92 };
+      case 13: return { label: 'Step 13 of 13', percent: 100 };
+      default: return { label: '', percent: 0 };
     }
   };
 
@@ -196,23 +201,47 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
       }
       setStep(6);
     } else if (step === 6) {
-      if (!activityLevel) {
-        setError('Please select your activity level.');
+      if (!fitnessGoal) {
+        setError('Please select your primary fitness goal.');
         return;
       }
       setStep(7);
     } else if (step === 7) {
-      if (!fitnessGoal) {
-        setError('Please select your main fitness goal.');
+      if (!activityLevel) {
+        setError('Please select your current activity level.');
         return;
       }
       setStep(8);
     } else if (step === 8) {
+      if (!workoutFrequency) {
+        setError('Please select your workout frequency.');
+        return;
+      }
+      setStep(9);
+    } else if (step === 9) {
       if (!experienceLevel) {
         setError('Please select your experience level.');
         return;
       }
-      setStep(9);
+      setStep(10);
+    } else if (step === 10) {
+      if (!preferredEnvironment) {
+        setError('Please select your preferred environment.');
+        return;
+      }
+      setStep(11);
+    } else if (step === 11) {
+      // Injuries - Optional: default to "None" if empty
+      if (!injuriesLimitations.trim()) {
+        setInjuriesLimitations('None');
+      }
+      setStep(12);
+    } else if (step === 12) {
+      if (!dietaryPreference) {
+        setError('Please select your dietary preference.');
+        return;
+      }
+      setStep(13);
     }
   };
 
@@ -224,8 +253,6 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
   };
 
   const handleSubmit = async () => {
-    if (!fullName.trim() || !gender || !sex || !activityLevel || !fitnessGoal || !experienceLevel) return;
-
     const day = parseInt(dobDay, 10);
     const month = parseInt(dobMonth, 10);
     const year = parseInt(dobYear, 10);
@@ -237,51 +264,55 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
     const heightValCm = getCalculatedHeightCm();
     const weightValKg = getCalculatedWeightKg();
 
-    // 1. Calculate nutrition metrics using the pure utility function
     const profileData: UserProfile = {
-      sex,
+      sex: sex!,
       date_of_birth: dateOfBirthStr,
       height_cm: heightValCm,
       weight_kg: weightValKg,
-      activity_level: activityLevel,
-      fitness_goal: fitnessGoal,
+      activity_level: activityLevel === 'active' ? 'active' : activityLevel!, // Map properly to calculations
+      fitness_goal: fitnessGoal!,
       full_name: fullName,
-      gender,
-      experience_level: experienceLevel,
+      gender: gender!,
+      experience_level: experienceLevel!,
+      workout_frequency: workoutFrequency!,
+      preferred_workout_environment: preferredEnvironment!,
+      injuries_limitations: injuriesLimitations.trim() || 'None',
+      dietary_preference: dietaryPreference!,
     };
-    const calculatedMetrics = calculateNutritionMetrics(profileData);
 
-    setLoading(true);
-    setError(null);
-
-    // Bypass live database writes during local testing overlay mode
-    if (session.user.id === 'mock-user-id-12345') {
-      setTimeout(() => {
-        setLoading(false);
-        onComplete(calculatedMetrics);
-      }, 1000);
+    // Pre-auth Questionnaire Submission
+    if (!session) {
+      setPendingOnboarding(profileData);
+      navigation.navigate('Login');
       return;
     }
 
+    // Post-auth fallback (existing logic if user is already logged in but had no profile)
+    setLoading(true);
+    setError(null);
+    const calculatedMetrics = calculateNutritionMetrics(profileData);
+
     try {
-      // 1. Save to user_profiles
-      const { error: insertProfileError } = await supabase.from('user_profiles').insert({
+      const { error: insertProfileError } = await supabase.from('user_profiles').upsert({
         id: session.user.id,
-        sex,
-        date_of_birth: dateOfBirthStr,
-        height_cm: Math.round(heightValCm),
-        weight_kg: Math.round(weightValKg),
-        activity_level: activityLevel,
-        fitness_goal: fitnessGoal,
-        full_name: fullName,
-        gender,
-        experience_level: experienceLevel,
+        sex: profileData.sex,
+        date_of_birth: profileData.date_of_birth,
+        height_cm: Math.round(profileData.height_cm),
+        weight_kg: Math.round(profileData.weight_kg),
+        activity_level: profileData.activity_level,
+        fitness_goal: profileData.fitness_goal,
+        full_name: profileData.full_name,
+        gender: profileData.gender,
+        experience_level: profileData.experience_level,
+        workout_frequency: profileData.workout_frequency,
+        preferred_workout_environment: profileData.preferred_workout_environment,
+        injuries_limitations: profileData.injuries_limitations,
+        dietary_preference: profileData.dietary_preference
       });
 
       if (insertProfileError) throw insertProfileError;
 
-      // 2. Save calculated metrics to user_metrics
-      const { error: insertMetricsError } = await supabase.from('user_metrics').insert({
+      const { error: insertMetricsError } = await supabase.from('user_metrics').upsert({
         id: session.user.id,
         bmi: calculatedMetrics.bmi,
         bmr: calculatedMetrics.bmr,
@@ -294,7 +325,9 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 
       if (insertMetricsError) throw insertMetricsError;
 
-      onComplete(calculatedMetrics);
+      if (route.params?.onComplete) {
+        route.params.onComplete(calculatedMetrics);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to save profile. Please try again.');
     } finally {
@@ -318,23 +351,43 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
     return `${kg} kg (${lbs} lbs)`;
   };
 
-  const getActivityDisplayLabel = () => {
-    switch (activityLevel) {
-      case 'sedentary': return 'Sedentary';
-      case 'light': return 'Lightly active';
-      case 'moderate': return 'Moderately active';
-      case 'active': return 'Very active';
-      case 'very_active': return 'Extremely active';
-      default: return '';
-    }
-  };
-
   const getGoalDisplayLabel = () => {
     switch (fitnessGoal) {
       case 'lose': return 'Lose fat';
       case 'maintain': return 'Maintain weight';
       case 'gain': return 'Build muscle';
       case 'recomposition': return 'Body recomposition';
+      case 'endurance': return 'Improve endurance';
+      default: return '';
+    }
+  };
+
+  const getActivityDisplayLabel = () => {
+    switch (activityLevel) {
+      case 'sedentary': return 'Sedentary';
+      case 'light': return 'Lightly active';
+      case 'moderate': return 'Moderately active';
+      case 'active': return 'Very active';
+      default: return '';
+    }
+  };
+
+  const getEnvironmentDisplayLabel = () => {
+    switch (preferredEnvironment) {
+      case 'gym': return 'Gym';
+      case 'home': return 'Home';
+      case 'outdoor': return 'Outdoor';
+      case 'calisthenics': return 'Calisthenics';
+      default: return '';
+    }
+  };
+
+  const getDietDisplayLabel = () => {
+    switch (dietaryPreference) {
+      case 'veg': return 'Veg';
+      case 'non_veg': return 'Non-veg';
+      case 'vegan': return 'Vegan';
+      case 'eggetarian': return 'Eggetarian';
       default: return '';
     }
   };
@@ -572,37 +625,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 6: // Activity Screen
-        return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.questionText}>How active is your daily life, outside of workouts?</Text>
-            <Text style={styles.subtext}>Be honest — this directly affects your calorie target.</Text>
-
-            <ScrollView style={styles.optionsList}>
-              {[
-                { key: 'sedentary', title: 'Sedentary', desc: 'Desk job, little to no exercise' },
-                { key: 'light', title: 'Lightly active', desc: 'Light exercise 1–3 days/week' },
-                { key: 'moderate', title: 'Moderately active', desc: 'Moderate exercise 3–5 days/week' },
-                { key: 'active', title: 'Very active', desc: 'Hard exercise 6–7 days/week' },
-                { key: 'very_active', title: 'Extremely active', desc: 'Physical job plus daily training' },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.optionItem,
-                    activityLevel === item.key && styles.optionItemActive,
-                  ]}
-                  onPress={() => setActivityLevel(item.key as ActivityLevelType)}
-                >
-                  <Text style={styles.optionItemTitle}>{item.title}</Text>
-                  <Text style={styles.optionItemDesc}>{item.desc}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        );
-
-      case 7: // Goal Screen
+      case 6: // Goal Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>What's your main goal right now?</Text>
@@ -611,9 +634,9 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
             <ScrollView style={styles.optionsList}>
               {[
                 { key: 'lose', title: 'Lose fat', desc: 'Create a deficit to reduce body fat percentage' },
-                { key: 'maintain', title: 'Maintain weight', desc: 'Balance energy intake to hold current weight' },
                 { key: 'gain', title: 'Build muscle', desc: 'Slight surplus to support muscle mass development' },
-                { key: 'recomposition', title: 'Body recomposition', desc: 'Lose fat and gain muscle simultaneously' },
+                { key: 'maintain', title: 'Maintain weight', desc: 'Balance energy intake to hold current weight' },
+                { key: 'endurance', title: 'Improve endurance', desc: 'Focus on sustained energy and stamina' },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.key}
@@ -631,7 +654,69 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 8: // Experience Level Screen
+      case 7: // Activity Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>How active is your daily life, outside of workouts?</Text>
+            <Text style={styles.subtext}>Be honest — this directly affects your calorie target.</Text>
+
+            <ScrollView style={styles.optionsList}>
+              {[
+                { key: 'sedentary', title: 'Sedentary', desc: 'Desk job, little to no exercise' },
+                { key: 'light', title: 'Lightly active', desc: 'Light exercise 1–3 days/week' },
+                { key: 'moderate', title: 'Moderately active', desc: 'Moderate exercise 3–5 days/week' },
+                { key: 'active', title: 'Very active', desc: 'Hard exercise 6–7 days/week' },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[
+                    styles.optionItem,
+                    activityLevel === item.key && styles.optionItemActive,
+                  ]}
+                  onPress={() => setActivityLevel(item.key as ActivityLevelType)}
+                >
+                  <Text style={styles.optionItemTitle}>{item.title}</Text>
+                  <Text style={styles.optionItemDesc}>{item.desc}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        );
+
+      case 8: // Workout Frequency Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>How often do you plan to train per week?</Text>
+            <Text style={styles.subtext}>Consistency is the key to achieving your fitness targets.</Text>
+
+            <TouchableOpacity
+              style={[styles.optionCard, workoutFrequency === '0-1' && styles.activeOptionCard]}
+              onPress={() => setWorkoutFrequency('0-1')}
+            >
+              <Text style={[styles.optionTitle, workoutFrequency === '0-1' && styles.activeOptionTitle]}>0 - 1 time</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, workoutFrequency === '2-3' && styles.activeOptionCard]}
+              onPress={() => setWorkoutFrequency('2-3')}
+            >
+              <Text style={[styles.optionTitle, workoutFrequency === '2-3' && styles.activeOptionTitle]}>2 - 3 times</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, workoutFrequency === '4-5' && styles.activeOptionCard]}
+              onPress={() => setWorkoutFrequency('4-5')}
+            >
+              <Text style={[styles.optionTitle, workoutFrequency === '4-5' && styles.activeOptionTitle]}>4 - 5 times</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, workoutFrequency === '6+' && styles.activeOptionCard]}
+              onPress={() => setWorkoutFrequency('6+')}
+            >
+              <Text style={[styles.optionTitle, workoutFrequency === '6+' && styles.activeOptionTitle]}>6+ times</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 9: // Experience Level Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>What is your experience level?</Text>
@@ -671,7 +756,105 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 9: // Confirmation Screen
+      case 10: // Preferred Environment Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>Where do you prefer to work out?</Text>
+            <Text style={styles.subtext}>Choose the environment that matches your lifestyle.</Text>
+
+            <TouchableOpacity
+              style={[styles.optionCard, preferredEnvironment === 'gym' && styles.activeOptionCard]}
+              onPress={() => setPreferredEnvironment('gym')}
+            >
+              <Text style={[styles.optionTitle, preferredEnvironment === 'gym' && styles.activeOptionTitle]}>Gym</Text>
+              <Text style={styles.optionSubtitle}>Commercial or fully-equipped training facility</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, preferredEnvironment === 'home' && styles.activeOptionCard]}
+              onPress={() => setPreferredEnvironment('home')}
+            >
+              <Text style={[styles.optionTitle, preferredEnvironment === 'home' && styles.activeOptionTitle]}>Home</Text>
+              <Text style={styles.optionSubtitle}>Minimal gear, bands, or dumbbells at home</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, preferredEnvironment === 'outdoor' && styles.activeOptionCard]}
+              onPress={() => setPreferredEnvironment('outdoor')}
+            >
+              <Text style={[styles.optionTitle, preferredEnvironment === 'outdoor' && styles.activeOptionTitle]}>Outdoor</Text>
+              <Text style={styles.optionSubtitle}>Parks, tracks, running, and fresh air</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, preferredEnvironment === 'calisthenics' && styles.activeOptionCard]}
+              onPress={() => setPreferredEnvironment('calisthenics')}
+            >
+              <Text style={[styles.optionTitle, preferredEnvironment === 'calisthenics' && styles.activeOptionTitle]}>Calisthenics</Text>
+              <Text style={styles.optionSubtitle}>Strict bodyweight bar parks and exercises</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 11: // Injuries or Limitations Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>Any physical injuries or limitations?</Text>
+            <Text style={styles.subtext}>
+              Specify any issues (like bad knees, lower back pain) so you can train safely. Type "None" if you have no limitations.
+            </Text>
+            <TextInput
+              style={styles.largeTextInput}
+              placeholder="e.g. Lower back pain, None"
+              placeholderTextColor="#7A7A7A"
+              maxLength={120}
+              autoFocus={true}
+              value={injuriesLimitations}
+              onChangeText={setInjuriesLimitations}
+            />
+            <TouchableOpacity
+              style={styles.skipTextContainer}
+              onPress={() => {
+                setInjuriesLimitations('None');
+                setStep(12);
+              }}
+            >
+              <Text style={styles.skipText}>No Injuries / Skip</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 12: // Dietary Preference Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>What is your dietary preference?</Text>
+            <Text style={styles.subtext}>Helps us customize nutrition and recipe logging suggestions.</Text>
+
+            <TouchableOpacity
+              style={[styles.optionCard, dietaryPreference === 'veg' && styles.activeOptionCard]}
+              onPress={() => setDietaryPreference('veg')}
+            >
+              <Text style={[styles.optionTitle, dietaryPreference === 'veg' && styles.activeOptionTitle]}>Vegetarian (Veg)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, dietaryPreference === 'non_veg' && styles.activeOptionCard]}
+              onPress={() => setDietaryPreference('non_veg')}
+            >
+              <Text style={[styles.optionTitle, dietaryPreference === 'non_veg' && styles.activeOptionTitle]}>Non-vegetarian</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, dietaryPreference === 'vegan' && styles.activeOptionCard]}
+              onPress={() => setDietaryPreference('vegan')}
+            >
+              <Text style={[styles.optionTitle, dietaryPreference === 'vegan' && styles.activeOptionTitle]}>Vegan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, dietaryPreference === 'eggetarian' && styles.activeOptionCard]}
+              onPress={() => setDietaryPreference('eggetarian')}
+            >
+              <Text style={[styles.optionTitle, dietaryPreference === 'eggetarian' && styles.activeOptionTitle]}>Eggetarian</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 13: // Confirmation Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>Verify your information</Text>
@@ -735,8 +918,8 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 
                 <View style={styles.summaryItem}>
                   <View style={styles.summaryLabelCol}>
-                    <Text style={styles.summaryLabel}>Activity Level</Text>
-                    <Text style={styles.summaryValue}>{getActivityDisplayLabel()}</Text>
+                    <Text style={styles.summaryLabel}>Main Goal</Text>
+                    <Text style={styles.summaryValue}>{getGoalDisplayLabel()}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setStep(6)}>
                     <Text style={styles.editText}>Edit</Text>
@@ -745,10 +928,20 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 
                 <View style={styles.summaryItem}>
                   <View style={styles.summaryLabelCol}>
-                    <Text style={styles.summaryLabel}>Main Goal</Text>
-                    <Text style={styles.summaryValue}>{getGoalDisplayLabel()}</Text>
+                    <Text style={styles.summaryLabel}>Activity Level</Text>
+                    <Text style={styles.summaryValue}>{getActivityDisplayLabel()}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setStep(7)}>
+                    <Text style={styles.editText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryLabelCol}>
+                    <Text style={styles.summaryLabel}>Workout Frequency</Text>
+                    <Text style={styles.summaryValue}>{workoutFrequency} times/week</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setStep(8)}>
                     <Text style={styles.editText}>Edit</Text>
                   </TouchableOpacity>
                 </View>
@@ -760,7 +953,37 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
                       {experienceLevel ? experienceLevel.charAt(0).toUpperCase() + experienceLevel.slice(1) : ''}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => setStep(8)}>
+                  <TouchableOpacity onPress={() => setStep(9)}>
+                    <Text style={styles.editText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryLabelCol}>
+                    <Text style={styles.summaryLabel}>Preferred Environment</Text>
+                    <Text style={styles.summaryValue}>{getEnvironmentDisplayLabel()}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setStep(10)}>
+                    <Text style={styles.editText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryLabelCol}>
+                    <Text style={styles.summaryLabel}>Injuries / Limitations</Text>
+                    <Text style={styles.summaryValue}>{injuriesLimitations || 'None'}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setStep(11)}>
+                    <Text style={styles.editText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryLabelCol}>
+                    <Text style={styles.summaryLabel}>Dietary Preference</Text>
+                    <Text style={styles.summaryValue}>{getDietDisplayLabel()}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setStep(12)}>
                     <Text style={styles.editText}>Edit</Text>
                   </TouchableOpacity>
                 </View>
@@ -816,14 +1039,14 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 
               <TouchableOpacity
                 style={[styles.nextButton, loading && styles.disabledButton]}
-                onPress={step === 9 ? handleSubmit : handleNext}
+                onPress={step === 13 ? handleSubmit : handleNext}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="#0D141D" />
                 ) : (
                   <Text style={styles.nextButtonText}>
-                    {step === 9 ? 'Confirm & Finish' : 'Continue'}
+                    {step === 13 ? 'Confirm & Finish' : 'Continue'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -838,7 +1061,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   keyboardView: {
     flex: 1,
@@ -865,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   progressBarOuter: {
     height: 6,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#192029',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -881,12 +1104,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#192029',
     borderRadius: 24,
     padding: 24,
-    borderWidth: 1,
-    borderColor: '#2D2D37',
-    minHeight: 460,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    minHeight: 480,
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -910,13 +1133,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   optionCard: {
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     paddingVertical: 18,
+    paddingHorizontal: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   activeOptionCard: {
     borderColor: '#D4FF13',
@@ -946,65 +1170,55 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   dobInput: {
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     color: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     padding: 16,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     textAlign: 'center',
   },
   dobYearInput: {
-    flexGrow: 1.5,
+    fontSize: 16,
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#121212',
-    borderRadius: 12,
+    justifyContent: 'center',
+    backgroundColor: '#0D141D',
+    borderRadius: 20,
     padding: 4,
-    marginBottom: 28,
+    marginBottom: 30,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 16,
   },
   toggleButtonActive: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#D4FF13',
   },
   toggleButtonText: {
     color: '#A0A0A0',
-    fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '800',
   },
   toggleButtonTextActive: {
-    color: '#D4FF13',
+    color: '#121212',
   },
   singleInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#242424',
-    borderRadius: 16,
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
-    paddingHorizontal: 16,
-  },
-  largeInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '900',
-    paddingVertical: 14,
-  },
-  inputSuffix: {
-    color: '#A0A0A0',
-    fontSize: 16,
-    fontWeight: '800',
+    borderColor: '#3D4A3D',
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    height: 72,
   },
   multiInputContainer: {
     flexDirection: 'row',
@@ -1012,28 +1226,36 @@ const styles = StyleSheet.create({
   },
   splitInputCol: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#242424',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#2D2D37',
-    paddingHorizontal: 16,
     marginHorizontal: 6,
+    alignItems: 'center',
+  },
+  largeInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '900',
+    paddingVertical: 10,
+  },
+  inputSuffix: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#A0A0A0',
+    marginLeft: 12,
   },
   inputLabelBelow: {
+    fontSize: 12,
     color: '#A0A0A0',
-    fontSize: 16,
     fontWeight: '800',
-    marginLeft: 8,
+    marginTop: 8,
+    textTransform: 'uppercase',
   },
   optionsList: {
     maxHeight: 280,
   },
   optionItem: {
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -1049,56 +1271,47 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionItemDesc: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#A0A0A0',
-    lineHeight: 18,
+    lineHeight: 16,
   },
   summaryList: {
-    backgroundColor: '#121212',
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#2D2D37',
-    padding: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   summaryItem: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#2D2D37',
+    borderColor: '#3D4A3D',
+    paddingVertical: 12,
   },
   summaryLabelCol: {
     flex: 1,
   },
   summaryLabel: {
-    color: '#7A7A7A',
     fontSize: 11,
-    textTransform: 'uppercase',
+    color: '#7A7A7A',
     fontWeight: '800',
-    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     marginBottom: 4,
   },
   summaryValue: {
-    color: '#FFFFFF',
     fontSize: 15,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   editText: {
     color: '#D4FF13',
     fontSize: 13,
     fontWeight: '800',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
   },
   disclaimerText: {
     fontSize: 11,
     color: '#7A7A7A',
     lineHeight: 16,
     textAlign: 'center',
-    fontStyle: 'italic',
-    paddingHorizontal: 8,
+    marginTop: 12,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -1108,7 +1321,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
     borderWidth: 1.5,
-    borderColor: '#4B5563',
+    borderColor: '#3D4A3D',
     borderRadius: 30, // rounded pill
     paddingVertical: 16,
     alignItems: 'center',
@@ -1157,10 +1370,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   largeTextInput: {
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     color: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     padding: 16,
     fontSize: 18,
@@ -1181,9 +1394,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   pillCard: {
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -1211,9 +1424,9 @@ const styles = StyleSheet.create({
   },
   halfOptionCard: {
     flex: 1,
-    backgroundColor: '#242424',
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
@@ -1228,5 +1441,15 @@ const styles = StyleSheet.create({
   },
   summaryListScroll: {
     maxHeight: 280,
+  },
+  skipTextContainer: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  skipText: {
+    color: '#A0A0A0',
+    fontWeight: '800',
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });

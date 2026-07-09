@@ -12,12 +12,15 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
+  Platform,
 } from 'react-native';
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { MOCK_WORKOUTS } from './HomeScreen';
+import { MOCK_EXERCISES, Exercise } from '../data/exercisesData';
+import { getLocalCustomExercises } from '../utils/customExercises';
 
 type LogWorkoutScreenRouteProp = RouteProp<RootStackParamList, 'LogWorkout'>;
 
@@ -25,16 +28,13 @@ type LogWorkoutScreenProps = {
   route: LogWorkoutScreenRouteProp;
 };
 
-interface Exercise {
-  id: string;
-  name: string;
-  muscle_group: string;
-}
-
 interface LoggedSet {
   set_number: number;
   reps: string;
   weight_kg: string;
+  isWeightPR?: boolean;
+  isRepsPR?: boolean;
+  isVolumePR?: boolean;
 }
 
 interface ActiveExercise {
@@ -43,25 +43,14 @@ interface ActiveExercise {
   inputReps: string;
   inputWeight: string;
   notes?: string;
+  historyLoaded?: boolean;
+  lastPerformance?: LoggedSet[];
+  historicalMaxWeight?: number;
+  historicalMaxReps?: number;
+  historicalMaxVolume?: number;
 }
 
-const MOCK_EXERCISES: Exercise[] = [
-  { id: 'ex-1', name: 'Bench Press', muscle_group: 'chest' },
-  { id: 'ex-2', name: 'Squat', muscle_group: 'legs' },
-  { id: 'ex-3', name: 'Deadlift', muscle_group: 'legs' },
-  { id: 'ex-4', name: 'Overhead Press', muscle_group: 'shoulders' },
-  { id: 'ex-5', name: 'Pull-up', muscle_group: 'back' },
-  { id: 'ex-6', name: 'Barbell Row', muscle_group: 'back' },
-  { id: 'ex-7', name: 'Lunges', muscle_group: 'legs' },
-  { id: 'ex-8', name: 'Plank', muscle_group: 'core' },
-  { id: 'ex-9', name: 'Bicep Curl', muscle_group: 'arms' },
-  { id: 'ex-10', name: 'Tricep Dip', muscle_group: 'arms' },
-  { id: 'ex-11', name: 'Leg Press', muscle_group: 'legs' },
-  { id: 'ex-12', name: 'Lat Pulldown', muscle_group: 'back' },
-  { id: 'ex-13', name: 'Push-up', muscle_group: 'chest' },
-  { id: 'ex-14', name: 'Romanian Deadlift', muscle_group: 'legs' },
-  { id: 'ex-15', name: 'Shoulder Press', muscle_group: 'shoulders' }
-];
+
 
 export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
   const session = route.params.session;
@@ -87,7 +76,8 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
 
   const fetchExercises = async () => {
     if (user.id === 'mock-user-id-12345') {
-      setExercisesList(MOCK_EXERCISES);
+      const customs = await getLocalCustomExercises();
+      setExercisesList([...MOCK_EXERCISES, ...customs]);
       setLoading(false);
       return;
     }
@@ -102,10 +92,117 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
       setExercisesList(data || []);
     } catch (err) {
       console.error('Error fetching exercises:', err);
-      setExercisesList(MOCK_EXERCISES); // Fallback to mocks
+      const customs = await getLocalCustomExercises();
+      setExercisesList([...MOCK_EXERCISES, ...customs]); // Fallback to mocks
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchExerciseHistory = async (exerciseId: string, index: number) => {
+    let lastPerformance: LoggedSet[] = [];
+    let historicalMaxWeight = 0;
+    let historicalMaxReps = 0;
+    let historicalMaxVolume = 0;
+
+    if (user.id === 'mock-user-id-12345') {
+      const allMockSets: any[] = [];
+      MOCK_WORKOUTS.forEach((workout) => {
+        if (workout.sets) {
+          workout.sets.forEach((set) => {
+            const exerciseName = activeExercises[index]?.exercise?.name || '';
+            const matchById = set.exercise_id && set.exercise_id === exerciseId;
+            const matchByName = set.exercise_name && exerciseName && set.exercise_name.toLowerCase() === exerciseName.toLowerCase();
+            if (matchById || matchByName) {
+              allMockSets.push({
+                date: workout.date,
+                set_number: set.set_number,
+                reps: set.reps,
+                weight_kg: set.weight_kg,
+              });
+            }
+          });
+        }
+      });
+
+      if (allMockSets.length > 0) {
+        allMockSets.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const newestDate = allMockSets[0].date;
+        const lastSets = allMockSets.filter((s) => s.date === newestDate);
+        lastSets.sort((a, b) => a.set_number - b.set_number);
+
+        lastPerformance = lastSets.map((s) => ({
+          set_number: s.set_number,
+          reps: String(s.reps),
+          weight_kg: String(s.weight_kg),
+        }));
+
+        allMockSets.forEach((s) => {
+          const w = parseFloat(s.weight_kg) || 0;
+          const r = parseInt(s.reps, 10) || 0;
+          if (w > historicalMaxWeight) historicalMaxWeight = w;
+          if (r > historicalMaxReps) historicalMaxReps = r;
+          const vol = w * r;
+          if (vol > historicalMaxVolume) historicalMaxVolume = vol;
+        });
+      }
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('workout_sets')
+          .select(`
+            reps,
+            weight_kg,
+            set_number,
+            workouts!inner (
+              date
+            )
+          `)
+          .eq('workouts.user_id', user.id)
+          .eq('exercise_id', exerciseId)
+          .order('date', { foreignTable: 'workouts', ascending: false })
+          .order('set_number', { ascending: true });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const newestDate = (data[0] as any).workouts?.date;
+          const lastSets = data.filter((item: any) => item.workouts?.date === newestDate);
+
+          lastPerformance = lastSets.map((item: any) => ({
+            set_number: item.set_number,
+            reps: String(item.reps),
+            weight_kg: String(item.weight_kg),
+          }));
+
+          data.forEach((item: any) => {
+            const w = parseFloat(item.weight_kg) || 0;
+            const r = parseInt(item.reps, 10) || 0;
+            if (w > historicalMaxWeight) historicalMaxWeight = w;
+            if (r > historicalMaxReps) historicalMaxReps = r;
+            const vol = w * r;
+            if (vol > historicalMaxVolume) historicalMaxVolume = vol;
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching exercise history:', err);
+      }
+    }
+
+    setActiveExercises((prev) => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = {
+          ...copy[index],
+          historyLoaded: true,
+          lastPerformance,
+          historicalMaxWeight,
+          historicalMaxReps,
+          historicalMaxVolume,
+        };
+      }
+      return copy;
+    });
   };
 
   useEffect(() => {
@@ -132,41 +229,66 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
     };
   }, []);
 
-  // Timer countdown hook
+  // Effect to fetch history automatically for newly added exercises
   useEffect(() => {
-    if (timerSeconds !== null && timerSeconds > 0 && timerActive) {
-      timerIntervalRef.current = setInterval(() => {
-        setTimerSeconds((prev) => (prev !== null ? prev - 1 : null));
+    activeExercises.forEach((ae, index) => {
+      if (ae.historyLoaded === undefined) {
+        setActiveExercises((prev) => {
+          const copy = [...prev];
+          if (copy[index]) {
+            copy[index] = {
+              ...copy[index],
+              historyLoaded: false, // mark false immediately to prevent double fetch
+            };
+          }
+          return copy;
+        });
+        fetchExerciseHistory(ae.exercise.id, index);
+      }
+    });
+  }, [activeExercises]);
+
+  // Timer countdown hook (using single-interval approach)
+  useEffect(() => {
+    let timerInterval: any = null;
+    if (timerActive && timerSeconds !== null && timerSeconds > 0) {
+      timerInterval = setInterval(() => {
+        setTimerSeconds((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(timerInterval);
+            setTimerActive(false);
+            playAlertSound();
+            Alert.alert('Rest Over!', 'Time to perform your next set.');
+            return null;
+          }
+          return prev - 1;
+        });
       }, 1000);
-    } else if (timerSeconds === 0) {
-      setTimerActive(false);
-      setTimerSeconds(null);
-      playAlertSound();
-      Alert.alert('Rest Over!', 'Time to perform your next set.');
     }
 
     return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (timerInterval) clearInterval(timerInterval);
     };
-  }, [timerSeconds, timerActive]);
+  }, [timerActive]);
 
   const playAlertSound = () => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
-      gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      oscillator.start();
-      setTimeout(() => {
-        oscillator.stop();
-        audioCtx.close();
-      }, 350);
+      if (Platform.OS === 'web') {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        oscillator.start();
+        setTimeout(() => {
+          oscillator.stop();
+        }, 300);
+      }
     } catch (e) {
-      console.log('Audio Context beep failed/blocked', e);
+      console.warn('Web Audio API not supported', e);
     }
   };
 
@@ -190,6 +312,26 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
     setSearchQuery('');
   };
 
+  const calculatePRFlags = (
+    sets: LoggedSet[],
+    maxWeight: number,
+    maxReps: number,
+    maxVolume: number
+  ): LoggedSet[] => {
+    return sets.map((s) => {
+      const weight = parseFloat(s.weight_kg) || 0;
+      const reps = parseInt(s.reps, 10) || 0;
+      const volume = weight * reps;
+
+      return {
+        ...s,
+        isWeightPR: maxWeight > 0 && weight > maxWeight,
+        isRepsPR: maxReps > 0 && reps > maxReps,
+        isVolumePR: maxVolume > 0 && volume > maxVolume,
+      };
+    });
+  };
+
   const handleLogSet = (index: number) => {
     const ae = activeExercises[index];
     const reps = parseInt(ae.inputReps, 10);
@@ -207,11 +349,19 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
       weight_kg: ae.inputWeight,
     };
 
+    const updatedSets = [...ae.sets, newSet];
+    const finalSets = calculatePRFlags(
+      updatedSets,
+      ae.historicalMaxWeight || 0,
+      ae.historicalMaxReps || 0,
+      ae.historicalMaxVolume || 0
+    );
+
     setActiveExercises((prev) => {
       const copy = [...prev];
       copy[index] = {
         ...ae,
-        sets: [...ae.sets, newSet],
+        sets: finalSets,
       };
       return copy;
     });
@@ -253,9 +403,15 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
         }
         return s;
       });
+      const finalSets = calculatePRFlags(
+        updatedSets,
+        ae.historicalMaxWeight || 0,
+        ae.historicalMaxReps || 0,
+        ae.historicalMaxVolume || 0
+      );
       copy[exerciseIndex] = {
         ...ae,
-        sets: updatedSets,
+        sets: finalSets,
       };
       return copy;
     });
@@ -271,9 +427,15 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
         ...s,
         set_number: idx + 1,
       }));
+      const finalSets = calculatePRFlags(
+        reindexedSets,
+        ae.historicalMaxWeight || 0,
+        ae.historicalMaxReps || 0,
+        ae.historicalMaxVolume || 0
+      );
       copy[exerciseIndex] = {
         ...ae,
-        sets: reindexedSets,
+        sets: finalSets,
       };
       return copy;
     });
@@ -304,6 +466,23 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
     if (totalSets === 0) {
       Alert.alert('Empty Workout', 'Please log at least one set before finishing.');
       return;
+    }
+
+    // 2. Validate all logged sets have valid numbers
+    for (let i = 0; i < activeExercises.length; i++) {
+      const ae = activeExercises[i];
+      for (let j = 0; j < ae.sets.length; j++) {
+        const set = ae.sets[j];
+        const reps = parseInt(set.reps, 10);
+        const weight = parseFloat(set.weight_kg);
+        if (isNaN(reps) || reps <= 0 || isNaN(weight) || weight < 0) {
+          Alert.alert(
+            'Invalid Set Data',
+            `Set ${set.set_number} in "${ae.exercise.name}" has an invalid weight or reps. Please correct it before finishing.`
+          );
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -481,31 +660,64 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
                     <Text style={[styles.tableCol, styles.colAction]}></Text>
                   </View>
                   {ae.sets.map((set) => (
-                    <View key={set.set_number} style={styles.tableRow}>
-                      <Text style={[styles.tableCell, styles.colSet, styles.setNumCell]}>
-                        {set.set_number}
-                      </Text>
-                      <TextInput
-                        style={[styles.tableInput, styles.colWeight]}
-                        keyboardType="numeric"
-                        value={set.weight_kg}
-                        onChangeText={(val) => handleEditSetField(index, set.set_number, 'weight_kg', val)}
-                      />
-                      <TextInput
-                        style={[styles.tableInput, styles.colReps]}
-                        keyboardType="numeric"
-                        value={set.reps}
-                        onChangeText={(val) => handleEditSetField(index, set.set_number, 'reps', val)}
-                      />
-                      <TouchableOpacity
-                        style={[styles.deleteSetBtn, styles.colAction]}
-                        activeOpacity={0.7}
-                        onPress={() => handleDeleteSet(index, set.set_number)}
-                      >
-                        <Text style={styles.deleteSetBtnText}>🗑</Text>
-                      </TouchableOpacity>
+                    <View key={set.set_number}>
+                      <View style={styles.tableRow}>
+                        <Text style={[styles.tableCell, styles.colSet, styles.setNumCell]}>
+                          {set.set_number}
+                        </Text>
+                        <TextInput
+                          style={[styles.tableInput, styles.colWeight]}
+                          keyboardType="numeric"
+                          value={set.weight_kg}
+                          onChangeText={(val) => handleEditSetField(index, set.set_number, 'weight_kg', val)}
+                        />
+                        <TextInput
+                          style={[styles.tableInput, styles.colReps]}
+                          keyboardType="numeric"
+                          value={set.reps}
+                          onChangeText={(val) => handleEditSetField(index, set.set_number, 'reps', val)}
+                        />
+                        <TouchableOpacity
+                          style={[styles.deleteSetBtn, styles.colAction]}
+                          activeOpacity={0.7}
+                          onPress={() => handleDeleteSet(index, set.set_number)}
+                        >
+                          <Text style={styles.deleteSetBtnText}>🗑</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* PR badges row */}
+                      {(set.isWeightPR || set.isRepsPR || set.isVolumePR) && (
+                        <View style={styles.prBadgeRow}>
+                          {set.isWeightPR && (
+                            <View style={styles.prPill}>
+                              <Text style={styles.prPillText}>★ WEIGHT PR</Text>
+                            </View>
+                          )}
+                          {set.isRepsPR && (
+                            <View style={styles.prPill}>
+                              <Text style={styles.prPillText}>★ REPS PR</Text>
+                            </View>
+                          )}
+                          {set.isVolumePR && (
+                            <View style={styles.prPill}>
+                              <Text style={styles.prPillText}>★ VOLUME PR</Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
                     </View>
                   ))}
+                </View>
+              )}
+
+              {/* Last Performance Display */}
+              {ae.historyLoaded && ae.lastPerformance && ae.lastPerformance.length > 0 && (
+                <View style={styles.lastPerformanceBox}>
+                  <Text style={styles.lastPerformanceLabel}>LAST LOGGED PERFORMANCE</Text>
+                  <Text style={styles.lastPerformanceText}>
+                    {ae.lastPerformance.map((set) => `${set.weight_kg}kg × ${set.reps}`).join('  |  ')}
+                  </Text>
                 </View>
               )}
 
@@ -603,11 +815,11 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -633,7 +845,7 @@ const styles = StyleSheet.create({
   notesInput: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     color: '#FFFFFF',
     padding: 14,
@@ -646,7 +858,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderStyle: 'dashed',
     padding: 30,
     alignItems: 'center',
@@ -666,7 +878,7 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 24,
     padding: 16,
     marginBottom: 16,
@@ -697,7 +909,7 @@ const styles = StyleSheet.create({
   setsTable: {
     marginBottom: 16,
     borderTopWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingTop: 12,
   },
   tableHeader: {
@@ -719,7 +931,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomWidth: 1.5,
-    borderColor: '#121212',
+    borderColor: '#0D141D',
     alignItems: 'center',
   },
   tableCell: {
@@ -733,9 +945,9 @@ const styles = StyleSheet.create({
     color: '#D4FF13',
   },
   exerciseNotesInput: {
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 8,
     color: '#FFFFFF',
     paddingHorizontal: 12,
@@ -744,9 +956,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tableInput: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 8,
     color: '#FFFFFF',
     paddingVertical: 4,
@@ -770,7 +982,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     borderTopWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingTop: 16,
   },
   inputContainer: {
@@ -785,9 +997,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   setFieldInput: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 12,
     color: '#FFFFFF',
     padding: 10,
@@ -804,12 +1016,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logSetBtnText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 13,
     fontWeight: '900',
   },
   addBtn: {
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderWidth: 1.5,
     borderColor: '#D4FF13',
     borderRadius: 30, // pill
@@ -842,7 +1054,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   finishBtnText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 16,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -886,9 +1098,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   timerControlBtn: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -905,7 +1117,7 @@ const styles = StyleSheet.create({
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -914,7 +1126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   modalTitle: {
     fontSize: 18,
@@ -929,7 +1141,7 @@ const styles = StyleSheet.create({
   searchBar: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 16,
     color: '#FFFFFF',
     padding: 12,
@@ -956,9 +1168,52 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1.5,
-    backgroundColor: '#2D2D37',
+    backgroundColor: '#3D4A3D',
   },
   flatListContent: {
     paddingBottom: 40,
+  },
+  prBadgeRow: {
+    flexDirection: 'row',
+    paddingLeft: 45,
+    paddingBottom: 6,
+    flexWrap: 'wrap',
+  },
+  prPill: {
+    backgroundColor: 'rgba(212, 255, 19, 0.15)',
+    borderColor: '#D4FF13',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginRight: 6,
+    marginBottom: 4,
+  },
+  prPillText: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  lastPerformanceBox: {
+    backgroundColor: '#0D141D',
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  lastPerformanceLabel: {
+    color: '#7A7A7A',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  lastPerformanceText: {
+    color: '#D4FF13',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

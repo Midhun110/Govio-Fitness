@@ -43,9 +43,17 @@ export default function WelcomeScreen() {
               <TouchableOpacity
                 style={styles.button}
                 activeOpacity={0.85}
-                onPress={() => navigation.navigate('Login')}
+                onPress={() => navigation.navigate('Onboarding')}
               >
                 <Text style={styles.buttonText}>Get Started</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.loginLink}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={styles.loginLinkText}>Already have an account? Log In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -58,7 +66,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   backgroundImage: {
     flex: 1,
@@ -67,7 +75,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(18, 18, 18, 0.75)', // Glassy dark vignette
+    backgroundColor: 'rgba(13, 20, 29, 0.75)', // Glassy dark vignette
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 60,
@@ -134,5 +142,16 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
+  },
+  loginLink: {
+    marginTop: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginLinkText: {
+    color: '#A0A0A0',
+    fontSize: 14,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions, Modal, TextInput, Alert, KeyboardAvoidingView, Animated } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { Exercise } from '../utils/calculations';
+import { MOCK_EXERCISES } from '../data/exercisesData';
+import { getLocalCustomExercises, editLocalCustomExercise, deleteLocalCustomExercise } from '../utils/customExercises';
 
 type ExerciseDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -19,8 +21,41 @@ export default function ExerciseDetailScreen() {
   const { session, exerciseId, name, muscleGroup } = route.params;
   const user = session?.user;
 
+  // Modal & Form States for editing
+  const [modalVisible, setModalVisible] = useState(false);
+  const [exName, setExName] = useState('');
+  const [primaryTarget, setPrimaryTarget] = useState('');
+  const [secondaryTargets, setSecondaryTargets] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [formTips, setFormTips] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Entry animation states
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    if (!loading && exercise) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        })
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(30);
+    }
+  }, [loading, exercise]);
 
   const getExerciseImageUrl = (muscleGroup: string) => {
     const muscle = muscleGroup.toLowerCase();
@@ -42,259 +77,12 @@ export default function ExerciseDetailScreen() {
     return 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600';
   };
 
-  const MOCK_EXERCISES: Exercise[] = [
-    {
-      id: 'ex-1',
-      name: 'Bench Press',
-      muscle_group: 'Chest',
-      primary_muscle: 'Pectoralis Major',
-      secondary_muscles: ['Triceps', 'Anterior Deltoids'],
-      instructions: [
-        'Lie flat on the bench with your feet flat on the floor.',
-        'Grip the barbell slightly wider than shoulder-width.',
-        'Unrack the bar and lower it slowly to your mid-chest.',
-        'Push the bar back up powerfully while keeping your elbows tucked at a 45-degree angle.'
-      ],
-      form_tips: [
-        'Keep your shoulder blades retracted and depressed throughout the lift.',
-        'Drive your feet into the floor to create leg drive.'
-      ],
-      common_mistakes: [
-        'Bouncing the bar off your chest.',
-        'Flaring your elbows out completely, which places excessive stress on the rotator cuffs.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600'
-    },
-    {
-      id: 'ex-2',
-      name: 'Squat',
-      muscle_group: 'Legs',
-      primary_muscle: 'Quadriceps',
-      secondary_muscles: ['Glutes', 'Hamstrings', 'Lower Back'],
-      instructions: [
-        'Place the barbell across your upper back (traps).',
-        'Stand with feet shoulder-width apart, toes pointing slightly out.',
-        'Hinge at your hips and bend your knees to lower your body.',
-        'Keep lowering until your thighs are parallel or below parallel to the floor.',
-        'Push through your heels to return to the starting standing position.'
-      ],
-      form_tips: [
-        'Keep your chest up and your spine neutral throughout the movement.',
-        'Make sure your knees track in the direction of your toes, not caving inward.'
-      ],
-      common_mistakes: [
-        'Allowing knees to cave inwards (valgus collapse).',
-        'Lifting heels off the floor, which shifts load excessively to knee joints.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    },
-    {
-      id: 'ex-3',
-      name: 'Deadlift',
-      muscle_group: 'Legs',
-      primary_muscle: 'Hamstrings & Glutes',
-      secondary_muscles: ['Erector Spinae', 'Latissimus Dorsi', 'Forearms'],
-      instructions: [
-        'Stand with your mid-foot under the barbell.',
-        'Bend over and grab the bar with a shoulder-width grip.',
-        'Drop your hips slightly and flatten your back completely.',
-        'Drive through your legs and pull the bar vertically up close to your shins.',
-        'Lock out at the top by squeezing your glutes, then lower the bar with control.'
-      ],
-      form_tips: [
-        'Keep the bar as close to your body as possible during the entire lift.',
-        'Engage your lats by imagining squeezing oranges in your armpits.'
-      ],
-      common_mistakes: [
-        'Rounding the lower back, which can cause lumbar injury.',
-        'Jerking the bar off the floor rather than pulling with progressive tension.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-    },
-    {
-      id: 'ex-4',
-      name: 'Overhead Press',
-      muscle_group: 'Shoulders',
-      primary_muscle: 'Anterior Deltoids',
-      secondary_muscles: ['Triceps', 'Upper Trapezius', 'Core'],
-      instructions: [
-        'Set the bar on a rack at collarbone height.',
-        'Grip the bar slightly wider than shoulder-width with forearms vertical.',
-        'Unrack the bar and take a step back, keeping your core tight.',
-        'Press the bar straight up over your head, moving your face back slightly to clear the bar.',
-        'Lock out your arms at the top, then lower it slowly back to collarbone level.'
-      ],
-      form_tips: [
-        'Squeeze your glutes and core to stabilize your spine.',
-        'Keep your forearms perfectly vertical under the bar.'
-      ],
-      common_mistakes: [
-        'Excessively arching the lower back.',
-        'Not locking out the elbows at the top of the repetition.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600'
-    },
-    {
-      id: 'ex-5',
-      name: 'Pull-up',
-      muscle_group: 'Back',
-      primary_muscle: 'Latissimus Dorsi',
-      secondary_muscles: ['Biceps', 'Rhomboids', 'Rear Deltoids'],
-      instructions: [
-        'Hang from a pull-up bar with an overhand grip, hands slightly wider than shoulder-width.',
-        'Depress your shoulders and engage your core.',
-        'Pull your chest up towards the bar by driving your elbows down toward your ribs.',
-        'Clear the bar with your chin, hold for a split second, then lower back to a dead hang.'
-      ],
-      form_tips: [
-        'Focus on pulling through your elbows rather than squeezing with your hands.',
-        'Control the eccentric lowering phase for maximum muscle activation.'
-      ],
-      common_mistakes: [
-        'Kicking or using momentum (kipping) to get over the bar.',
-        'Not completing the full range of motion.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600'
-    },
-    {
-      id: 'ex-6',
-      name: 'Bicep Curl',
-      muscle_group: 'Biceps',
-      primary_muscle: 'Biceps Brachii',
-      secondary_muscles: ['Brachialis', 'Brachioradialis'],
-      instructions: [
-        'Hold a pair of dumbbells at your sides, palms facing forward.',
-        'Keep your elbows tucked close to your torso.',
-        'Squeeze your biceps and curl the weights up toward shoulder height.',
-        'Lower the dumbbells slowly back to the starting point.'
-      ],
-      form_tips: [
-        'Keep your wrists straight and avoid using momentum.',
-        'Keep your shoulders down and back.'
-      ],
-      common_mistakes: [
-        'Swinging the elbows forward to lift heavier weight.',
-        'Using the lower back to swing the body for momentum.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-7',
-      name: 'Tricep Dip',
-      muscle_group: 'Triceps',
-      primary_muscle: 'Triceps Brachii',
-      secondary_muscles: ['Anterior Deltoids', 'Pectoralis Major'],
-      instructions: [
-        'Hoist yourself up on parallel dip bars with arms fully locked out.',
-        'Inhale, bend your elbows, and lower your body slowly.',
-        'Stop lowering when your elbows reach a 90-degree angle.',
-        'Exhale and push yourself back up to the starting position.'
-      ],
-      form_tips: [
-        'Keep your chest slightly tilted forward to engage chest, or upright for triceps.',
-        'Do not go past a 90-degree angle to protect your shoulders.'
-      ],
-      common_mistakes: [
-        'Shrugging the shoulders up toward the ears.',
-        'Flaring the elbows out excessively.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-8',
-      name: 'Abs Crunch',
-      muscle_group: 'Abs',
-      primary_muscle: 'Rectus Abdominis',
-      secondary_muscles: ['Transverse Abdominis', 'Obliques'],
-      instructions: [
-        'Lie on your back with knees bent and feet flat on the floor.',
-        'Place your hands lightly behind your head or crossed over your chest.',
-        'Engage your abdominal muscles and lift your shoulders off the floor.',
-        'Exhale as you rise, hold for a moment, then lower slowly back to the start.'
-      ],
-      form_tips: [
-        'Do not pull on your neck with your hands.',
-        'Focus on rib-to-pelvis contraction.'
-      ],
-      common_mistakes: [
-        'Using hip flexors to pull the body up.',
-        'Tucking the chin aggressively into the chest.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-    },
-    {
-      id: 'ex-9',
-      name: 'Wrist Curl',
-      muscle_group: 'Forearms',
-      primary_muscle: 'Wrist Flexors',
-      secondary_muscles: ['Brachioradialis'],
-      instructions: [
-        'Sit on a bench, holding dumbbells with an underhand grip.',
-        'Rest your forearms on your thighs with wrists hanging off the knees.',
-        'Let the weight roll down to your fingers, then curl your wrists upward.',
-        'Squeeze the flexors at the top, then lower with control.'
-      ],
-      form_tips: [
-        'Perform the movement slowly through the full range of motion.',
-        'Keep your forearms flat against your legs.'
-      ],
-      common_mistakes: [
-        'Lifting the forearms off the thighs.',
-        'Jerking the wrist quickly, which can cause tendonitis.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-    },
-    {
-      id: 'ex-10',
-      name: 'Hip Thrust',
-      muscle_group: 'Glutes',
-      primary_muscle: 'Gluteus Maximus',
-      secondary_muscles: ['Hamstrings', 'Core'],
-      instructions: [
-        'Sit on the floor with your upper back resting against a sturdy bench.',
-        'Roll a barbell over your hips, using a pad for comfort.',
-        'Place feet flat on the floor, hip-width apart.',
-        'Drive through your heels to lift your hips until thighs are parallel to floor.',
-        'Squeeze glutes at lockout, then lower hips back down.'
-      ],
-      form_tips: [
-        'Keep your chin tucked and look forward, not up at the ceiling.',
-        'Ensure shins are vertical at the top of the lift.'
-      ],
-      common_mistakes: [
-        'Hyperextending the lower back at the top.',
-        'Pushing through the toes instead of the heels.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    },
-    {
-      id: 'ex-11',
-      name: 'Calf Raise',
-      muscle_group: 'Calves',
-      primary_muscle: 'Gastrocnemius',
-      secondary_muscles: ['Soleus'],
-      instructions: [
-        'Stand with the balls of your feet on an elevated step or block.',
-        'Hold onto a support for balance if needed.',
-        'Lower your heels below the step level to feel a stretch.',
-        'Push up high onto your toes, contracting the calves.',
-        'Hold the contraction for a second, then lower slowly.'
-      ],
-      form_tips: [
-        'Keep your knees straight but not completely locked out.',
-        'Pause at the bottom stretch and top contraction.'
-      ],
-      common_mistakes: [
-        'Bouncing quickly at the bottom using Achilles tendon elasticity.',
-        'Not using a full range of motion.'
-      ],
-      image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-    }
-  ];
+
 
   const fetchExerciseDetails = async () => {
     if (!user || user.id === 'mock-user-id-12345') {
-      const match = MOCK_EXERCISES.find(ex => ex.id === exerciseId);
+      const localCustoms = await getLocalCustomExercises();
+      const match = localCustoms.find(ex => ex.id === exerciseId) || MOCK_EXERCISES.find(ex => ex.id === exerciseId);
       if (match) {
         setExercise(match);
       } else {
@@ -325,11 +113,110 @@ export default function ExerciseDetailScreen() {
       setExercise(data);
     } catch (err) {
       console.error('Error fetching exercise details:', err);
-      // Fallback
-      const match = MOCK_EXERCISES.find(ex => ex.id === exerciseId);
+      // Fallback to local custom or mock
+      const localCustoms = await getLocalCustomExercises();
+      const match = localCustoms.find(ex => ex.id === exerciseId) || MOCK_EXERCISES.find(ex => ex.id === exerciseId);
       setExercise(match || null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteExercise = () => {
+    Alert.alert(
+      'Delete Exercise',
+      'Are you sure you want to delete this custom exercise? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!user || user.id === 'mock-user-id-12345') {
+                await deleteLocalCustomExercise(exerciseId);
+              } else {
+                const { error } = await supabase
+                  .from('exercises')
+                  .delete()
+                  .eq('id', exerciseId);
+                
+                if (error) throw error;
+              }
+              Alert.alert('Success', 'Exercise deleted successfully.');
+              navigation.goBack();
+            } catch (err: any) {
+              console.error('Error deleting custom exercise:', err);
+              Alert.alert('Error', err.message || 'Failed to delete custom exercise.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleUpdateExercise = async () => {
+    if (!exName.trim()) {
+      Alert.alert('Validation Error', 'Exercise Name is required.');
+      return;
+    }
+    if (!primaryTarget.trim()) {
+      Alert.alert('Validation Error', 'Primary Target Muscle is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const parsedSecondary = secondaryTargets
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      const parsedInstructions = instructions
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      const parsedTips = formTips
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      const exercisePayload = {
+        name: exName.trim(),
+        primary_muscle: primaryTarget.trim(),
+        secondary_muscles: parsedSecondary,
+        instructions: parsedInstructions,
+        form_tips: parsedTips
+      };
+
+      if (!user || user.id === 'mock-user-id-12345') {
+        const updated = await editLocalCustomExercise(exerciseId, exercisePayload);
+        if (updated) {
+          setExercise(updated);
+        }
+        Alert.alert('Success', 'Custom exercise updated successfully.');
+      } else {
+        const { data, error } = await supabase
+          .from('exercises')
+          .update(exercisePayload)
+          .eq('id', exerciseId)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        if (data) {
+          setExercise(data);
+        }
+        Alert.alert('Success', 'Custom exercise updated successfully.');
+      }
+
+      setModalVisible(false);
+    } catch (err: any) {
+      console.error('Error updating custom exercise:', err);
+      Alert.alert('Error', err.message || 'Failed to update custom exercise.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -368,10 +255,11 @@ export default function ExerciseDetailScreen() {
             <Text style={styles.errorText}>Failed to load guide details.</Text>
           </View>
         ) : (
-          <ScrollView 
-            contentContainerStyle={styles.scrollContainer}
-            showsVerticalScrollIndicator={false}
-          >
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], flex: 1 }}>
+            <ScrollView 
+              contentContainerStyle={styles.scrollContainer}
+              showsVerticalScrollIndicator={false}
+            >
             {/* Exercise Image */}
             <View style={styles.imageCard}>
               <Image
@@ -445,9 +333,155 @@ export default function ExerciseDetailScreen() {
               </View>
             )}
 
+            {exercise.is_custom && (
+              <View style={styles.customActionsRow}>
+                <TouchableOpacity 
+                  style={styles.editBtn} 
+                  onPress={() => {
+                    setExName(exercise.name);
+                    setPrimaryTarget(exercise.primary_muscle || '');
+                    setSecondaryTargets((exercise.secondary_muscles || []).join(', '));
+                    setInstructions((exercise.instructions || []).join('\n'));
+                    setFormTips((exercise.form_tips || []).join('\n'));
+                    setModalVisible(true);
+                  }}
+                >
+                  <Text style={styles.editBtnText}>EDIT GUIDE</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.deleteBtn} 
+                  onPress={handleDeleteExercise}
+                >
+                  <Text style={styles.deleteBtnText}>DELETE</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
           </ScrollView>
-        )}
-      </View>
+        </Animated.View>
+      )}
+    </View>
+
+      {/* Edit Exercise Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={styles.modalContent}>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <TouchableOpacity 
+                  style={styles.modalCancelBtn} 
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelBtnText}>CANCEL</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>EDIT EXERCISE</Text>
+                <View style={{ width: 60 }} />
+              </View>
+
+              <ScrollView 
+                contentContainerStyle={styles.modalFormScroll}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Name Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>EXERCISE NAME *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Incline Cable Press"
+                    placeholderTextColor="#7A7A7A"
+                    value={exName}
+                    onChangeText={setExName}
+                  />
+                </View>
+
+                {/* Muscle Group (Read-Only) */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>MUSCLE GROUP</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputDisabled]}
+                    value={muscleGroup}
+                    editable={false}
+                  />
+                </View>
+
+                {/* Primary Target Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>PRIMARY TARGET *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Upper Chest"
+                    placeholderTextColor="#7A7A7A"
+                    value={primaryTarget}
+                    onChangeText={setPrimaryTarget}
+                  />
+                </View>
+
+                {/* Secondary Targets Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>SECONDARY TARGETS (OPTIONAL)</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Triceps, Anterior Deltoids (comma separated)"
+                    placeholderTextColor="#7A7A7A"
+                    value={secondaryTargets}
+                    onChangeText={setSecondaryTargets}
+                  />
+                </View>
+
+                {/* How-To-Perform Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>HOW TO PERFORM (OPTIONAL, ONE STEP PER LINE)</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputMultiline]}
+                    multiline={true}
+                    numberOfLines={4}
+                    placeholder="e.g. Adjust cables to chest height.&#10;Step forward and press handle."
+                    placeholderTextColor="#7A7A7A"
+                    value={instructions}
+                    onChangeText={setInstructions}
+                  />
+                </View>
+
+                {/* Pro Form Tips Input */}
+                <View style={styles.formInputGroup}>
+                  <Text style={styles.formLabel}>PRO FORM TIPS (OPTIONAL, ONE TIP PER LINE)</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formInputMultiline]}
+                    multiline={true}
+                    numberOfLines={3}
+                    placeholder="e.g. Keep shoulder blades squeezed.&#10;Exhale as you press."
+                    placeholderTextColor="#7A7A7A"
+                    value={formTips}
+                    onChangeText={setFormTips}
+                  />
+                </View>
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  style={[styles.modalSubmitBtn, submitting && styles.modalSubmitBtnDisabled]}
+                  onPress={handleUpdateExercise}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#0D141D" />
+                  ) : (
+                    <Text style={styles.modalSubmitBtnText}>SAVE CHANGES</Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -455,7 +489,7 @@ export default function ExerciseDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   innerContainer: {
     flex: 1,
@@ -469,7 +503,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#2D2D37',
+    borderBottomColor: '#3D4A3D',
   },
   backButton: {
     marginRight: 16,
@@ -542,7 +576,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   muscleBadgeText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -551,7 +585,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 16,
     marginBottom: 16,
   },
@@ -586,7 +620,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 16,
     marginBottom: 16,
   },
@@ -670,5 +704,144 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     lineHeight: 17,
+  },
+  customActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  editBtn: {
+    flex: 1,
+    backgroundColor: '#D4FF13',
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  editBtnText: {
+    color: '#0D141D',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  deleteBtn: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  deleteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#0D141D',
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: '#0D141D',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#3D4A3D',
+  },
+  modalCancelBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#7A7A7A',
+    borderRadius: 8,
+  },
+  modalCancelBtnText: {
+    color: '#A0A0A0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  modalFormScroll: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  formInputGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  formInput: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  formInputDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#151C25',
+  },
+  formInputMultiline: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  modalSubmitBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 30,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalSubmitBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalSubmitBtnText: {
+    color: '#0D141D',
+    fontSize: 15,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

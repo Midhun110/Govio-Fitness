@@ -22,6 +22,54 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../utils/calculations';
+import AnalyticsView from '../components/AnalyticsView';
+import { MOCK_EXERCISES } from '../data/exercisesData';
+import { getLocalCustomExercises } from '../utils/customExercises';
+import * as SecureStore from 'expo-secure-store';
+
+const calculateStreak = (workoutDates: string[]): number => {
+  if (workoutDates.length === 0) return 0;
+
+  // Unique sorted date strings (descending)
+  const dates = Array.from(new Set(workoutDates))
+    .map((d) => {
+      const dateObj = new Date(d);
+      dateObj.setHours(0, 0, 0, 0);
+      return dateObj;
+    })
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const mostRecent = dates[0];
+
+  // If the last workout was before yesterday, streak is broken
+  if (mostRecent < yesterday) {
+    return 0;
+  }
+
+  let currentStreak = 1;
+  let currentDate = mostRecent;
+
+  for (let i = 1; i < dates.length; i++) {
+    const prevDate = dates[i];
+    const diffTime = currentDate.getTime() - prevDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      currentStreak++;
+      currentDate = prevDate;
+    } else if (diffDays > 1) {
+      break;
+    }
+  }
+
+  return currentStreak;
+};
 
 type HomeScreenProps = {
   route?: {
@@ -96,267 +144,50 @@ const POPULAR_WORKOUTS = [
   },
 ];
 
-const MOCK_EXERCISES = [
-  {
-    id: 'ex-1',
-    name: 'Bench Press',
-    muscle_group: 'Chest',
-    primary_muscle: 'Pectoralis Major',
-    secondary_muscles: ['Triceps', 'Anterior Deltoids'],
-    instructions: [
-      'Lie flat on the bench with your feet flat on the floor.',
-      'Grip the barbell slightly wider than shoulder-width.',
-      'Unrack the bar and lower it slowly to your mid-chest.',
-      'Push the bar back up powerfully while keeping your elbows tucked at a 45-degree angle.'
-    ],
-    form_tips: [
-      'Keep your shoulder blades retracted and depressed throughout the lift.',
-      'Drive your feet into the floor to create leg drive.'
-    ],
-    common_mistakes: [
-      'Bouncing the bar off your chest.',
-      'Flaring your elbows out completely, which places excessive stress on the rotator cuffs.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600'
-  },
-  {
-    id: 'ex-2',
-    name: 'Squat',
-    muscle_group: 'Legs',
-    primary_muscle: 'Quadriceps',
-    secondary_muscles: ['Glutes', 'Hamstrings', 'Lower Back'],
-    instructions: [
-      'Place the barbell across your upper back (traps).',
-      'Stand with feet shoulder-width apart, toes pointing slightly out.',
-      'Hinge at your hips and bend your knees to lower your body.',
-      'Keep lowering until your thighs are parallel or below parallel to the floor.',
-      'Push through your heels to return to the starting standing position.'
-    ],
-    form_tips: [
-      'Keep your chest up and your spine neutral throughout the movement.',
-      'Make sure your knees track in the direction of your toes, not caving inward.'
-    ],
-    common_mistakes: [
-      'Allowing knees to cave inwards (valgus collapse).',
-      'Lifting heels off the floor, which shifts load excessively to knee joints.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-  },
-  {
-    id: 'ex-3',
-    name: 'Deadlift',
-    muscle_group: 'Legs',
-    primary_muscle: 'Hamstrings & Glutes',
-    secondary_muscles: ['Erector Spinae', 'Latissimus Dorsi', 'Forearms'],
-    instructions: [
-      'Stand with your mid-foot under the barbell.',
-      'Bend over and grab the bar with a shoulder-width grip.',
-      'Drop your hips slightly and flatten your back completely.',
-      'Drive through your legs and pull the bar vertically up close to your shins.',
-      'Lock out at the top by squeezing your glutes, then lower the bar with control.'
-    ],
-    form_tips: [
-      'Keep the bar as close to your body as possible during the entire lift.',
-      'Engage your lats by imagining squeezing oranges in your armpits.'
-    ],
-    common_mistakes: [
-      'Rounding the lower back, which can cause lumbar injury.',
-      'Jerking the bar off the floor rather than pulling with progressive tension.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-  },
-  {
-    id: 'ex-4',
-    name: 'Overhead Press',
-    muscle_group: 'Shoulders',
-    primary_muscle: 'Anterior Deltoids',
-    secondary_muscles: ['Triceps', 'Upper Trapezius', 'Core'],
-    instructions: [
-      'Set the bar on a rack at collarbone height.',
-      'Grip the bar slightly wider than shoulder-width with forearms vertical.',
-      'Unrack the bar and take a step back, keeping your core tight.',
-      'Press the bar straight up over your head, moving your face back slightly to clear the bar.',
-      'Lock out your arms at the top, then lower it slowly back to collarbone level.'
-    ],
-    form_tips: [
-      'Squeeze your glutes and core to stabilize your spine.',
-      'Keep your forearms perfectly vertical under the bar.'
-    ],
-    common_mistakes: [
-      'Excessively arching the lower back.',
-      'Not locking out the elbows at the top of the repetition.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600'
-  },
-  {
-    id: 'ex-5',
-    name: 'Pull-up',
-    muscle_group: 'Back',
-    primary_muscle: 'Latissimus Dorsi',
-    secondary_muscles: ['Biceps', 'Rhomboids', 'Rear Deltoids'],
-    instructions: [
-      'Hang from a pull-up bar with an overhand grip, hands slightly wider than shoulder-width.',
-      'Depress your shoulders and engage your core.',
-      'Pull your chest up towards the bar by driving your elbows down toward your ribs.',
-      'Clear the bar with your chin, hold for a split second, then lower back to a dead hang.'
-    ],
-    form_tips: [
-      'Focus on pulling through your elbows rather than squeezing with your hands.',
-      'Control the eccentric lowering phase for maximum muscle activation.'
-    ],
-    common_mistakes: [
-      'Kicking or using momentum (kipping) to get over the bar.',
-      'Not completing the full range of motion.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600'
-  },
-  {
-    id: 'ex-6',
-    name: 'Bicep Curl',
-    muscle_group: 'Biceps',
-    primary_muscle: 'Biceps Brachii',
-    secondary_muscles: ['Brachialis', 'Brachioradialis'],
-    instructions: [
-      'Hold a pair of dumbbells at your sides, palms facing forward.',
-      'Keep your elbows tucked close to your torso.',
-      'Squeeze your biceps and curl the weights up toward shoulder height.',
-      'Lower the dumbbells slowly back to the starting point.'
-    ],
-    form_tips: [
-      'Keep your wrists straight and avoid using momentum.',
-      'Keep your shoulders down and back.'
-    ],
-    common_mistakes: [
-      'Swinging the elbows forward to lift heavier weight.',
-      'Using the lower back to swing the body for momentum.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-  },
-  {
-    id: 'ex-7',
-    name: 'Tricep Dip',
-    muscle_group: 'Triceps',
-    primary_muscle: 'Triceps Brachii',
-    secondary_muscles: ['Anterior Deltoids', 'Pectoralis Major'],
-    instructions: [
-      'Hoist yourself up on parallel dip bars with arms fully locked out.',
-      'Inhale, bend your elbows, and lower your body slowly.',
-      'Stop lowering when your elbows reach a 90-degree angle.',
-      'Exhale and push yourself back up to the starting position.'
-    ],
-    form_tips: [
-      'Keep your chest slightly tilted forward to engage chest, or upright for triceps.',
-      'Do not go past a 90-degree angle to protect your shoulders.'
-    ],
-    common_mistakes: [
-      'Shrugging the shoulders up toward the ears.',
-      'Flaring the elbows out excessively.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-  },
-  {
-    id: 'ex-8',
-    name: 'Abs Crunch',
-    muscle_group: 'Abs',
-    primary_muscle: 'Rectus Abdominis',
-    secondary_muscles: ['Transverse Abdominis', 'Obliques'],
-    instructions: [
-      'Lie on your back with knees bent and feet flat on the floor.',
-      'Place your hands lightly behind your head or crossed over your chest.',
-      'Engage your abdominal muscles and lift your shoulders off the floor.',
-      'Exhale as you rise, hold for a moment, then lower slowly back to the start.'
-    ],
-    form_tips: [
-      'Do not pull on your neck with your hands.',
-      'Focus on rib-to-pelvis contraction.'
-    ],
-    common_mistakes: [
-      'Using hip flexors to pull the body up.',
-      'Tucking the chin aggressively into the chest.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-  },
-  {
-    id: 'ex-9',
-    name: 'Wrist Curl',
-    muscle_group: 'Forearms',
-    primary_muscle: 'Wrist Flexors',
-    secondary_muscles: ['Brachioradialis'],
-    instructions: [
-      'Sit on a bench, holding dumbbells with an underhand grip.',
-      'Rest your forearms on your thighs with wrists hanging off the knees.',
-      'Let the weight roll down to your fingers, then curl your wrists upward.',
-      'Squeeze the flexors at the top, then lower with control.'
-    ],
-    form_tips: [
-      'Perform the movement slowly through the full range of motion.',
-      'Keep your forearms flat against your legs.'
-    ],
-    common_mistakes: [
-      'Lifting the forearms off the thighs.',
-      'Jerking the wrist quickly, which can cause tendonitis.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-  },
-  {
-    id: 'ex-10',
-    name: 'Hip Thrust',
-    muscle_group: 'Glutes',
-    primary_muscle: 'Gluteus Maximus',
-    secondary_muscles: ['Hamstrings', 'Core'],
-    instructions: [
-      'Sit on the floor with your upper back resting against a sturdy bench.',
-      'Roll a barbell over your hips, using a pad for comfort.',
-      'Place feet flat on the floor, hip-width apart.',
-      'Drive through your heels to lift your hips until thighs are parallel to floor.',
-      'Squeeze glutes at lockout, then lower hips back down.'
-    ],
-    form_tips: [
-      'Keep your chin tucked and look forward, not up at the ceiling.',
-      'Ensure shins are vertical at the top of the lift.'
-    ],
-    common_mistakes: [
-      'Hyperextending the lower back at the top.',
-      'Pushing through the toes instead of the heels.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-  },
-  {
-    id: 'ex-11',
-    name: 'Calf Raise',
-    muscle_group: 'Calves',
-    primary_muscle: 'Gastrocnemius',
-    secondary_muscles: ['Soleus'],
-    instructions: [
-      'Stand with the balls of your feet on an elevated step or block.',
-      'Hold onto a support for balance if needed.',
-      'Lower your heels below the step level to feel a stretch.',
-      'Push up high onto your toes, contracting the calves.',
-      'Hold the contraction for a second, then lower slowly.'
-    ],
-    form_tips: [
-      'Keep your knees straight but not completely locked out.',
-      'Pause at the bottom stretch and top contraction.'
-    ],
-    common_mistakes: [
-      'Bouncing quickly at the bottom using Achilles tendon elasticity.',
-      'Not using a full range of motion.'
-    ],
-    image_url: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600'
-  }
-];
+
 
 // Global arrays for mock database in development bypass mode
 export let MOCK_WORKOUTS: Array<{ id: string; date: string; notes: string; exercisesCount: number; sets: any[] }> = [];
 export let MOCK_FOOD_LOGS: Array<{ id: string; user_id: string; food_id: string; quantity_grams: number; logged_at: string; meal_type: string; foods: any }> = [];
+
+const MUSCLE_IMAGES: Record<string, any> = {
+  Chest: require('../../assets/icons/muscles_real/chest.png'),
+  Back: require('../../assets/icons/muscles_real/back.png'),
+  Shoulders: require('../../assets/icons/muscles_real/shoulders.png'),
+  Biceps: require('../../assets/icons/muscles_real/biceps.png'),
+  Triceps: require('../../assets/icons/muscles_real/triceps.png'),
+  Legs: require('../../assets/icons/muscles_real/legs.png'),
+  Abs: require('../../assets/icons/muscles_real/abs.png'),
+  Forearms: require('../../assets/icons/muscles_real/forearms.png'),
+  Glutes: require('../../assets/icons/muscles_real/glutes.png'),
+  Calves: require('../../assets/icons/muscles_real/calves.png'),
+};
+
+const MuscleIcon = ({ muscleKey, fallbackEmoji }: { muscleKey: string; fallbackEmoji: string }) => {
+  const [hasError, setHasError] = useState(false);
+  const imageSource = MUSCLE_IMAGES[muscleKey];
+
+  if (hasError || !imageSource) {
+    return <Text style={styles.muscleCardIcon}>{fallbackEmoji}</Text>;
+  }
+
+  return (
+    <Image
+      source={imageSource}
+      style={styles.muscleCardImage}
+      onError={() => setHasError(true)}
+      resizeMode="contain"
+    />
+  );
+};
 
 export default function HomeScreen({ route }: HomeScreenProps) {
   const session = route?.params?.session;
   const user = session?.user;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
-  // Active Bottom Tab: 'home' | 'exercises' | 'profile'
-  const [activeTab, setActiveTab] = useState<'home' | 'exercises' | 'profile'>('home');
+  // Active Bottom Tab: 'home' | 'exercises' | 'profile' | 'analytics'
+  const [activeTab, setActiveTab] = useState<'home' | 'exercises' | 'profile' | 'analytics'>('home');
   const [homeSubTab, setHomeSubTab] = useState<'workouts' | 'trackers'>('workouts');
 
   const [loading, setLoading] = useState(true);
@@ -375,6 +206,13 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   
   // Today's workout state
   const [todayWorkout, setTodayWorkout] = useState<{ logged: boolean; exerciseCount: number } | null>(null);
+  const [streak, setStreak] = useState(0);
+
+  // Smart suggestions states
+  const [untrainedMuscles, setUntrainedMuscles] = useState<string[]>([]);
+  const [focusInsight, setFocusInsight] = useState<{ frequent: string; target: string; note: string } | null>(null);
+  const [dismissedUntrained, setDismissedUntrained] = useState(false);
+  const [dismissedInsight, setDismissedInsight] = useState(false);
 
   // Weight Logging Modal State
   const [showWeightModal, setShowWeightModal] = useState(false);
@@ -386,7 +224,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [editHeight, setEditHeight] = useState('');
   const [editWeight, setEditWeight] = useState('');
-  const [editGoal, setEditGoal] = useState<'lose' | 'maintain' | 'gain' | 'recomposition'>('maintain');
+  const [editGoal, setEditGoal] = useState<'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance'>('maintain');
   const [editActivity, setEditActivity] = useState<'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'>('moderate');
   const [editFullName, setEditFullName] = useState('');
   const [editGender, setEditGender] = useState<'male' | 'female' | 'non_binary' | 'other' | 'prefer_not_to_say'>('prefer_not_to_say');
@@ -398,12 +236,135 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  const processSuggestions = (workoutsList: any[]) => {
+    if (!workoutsList || workoutsList.length === 0) {
+      setUntrainedMuscles([]);
+      setFocusInsight(null);
+      return;
+    }
+
+    const ALL_MUSCLES = [
+      'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'
+    ];
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. Calculate untrained muscles (haven't trained in over 5 days)
+    const lastTrainedMap: { [key: string]: Date | null } = {};
+    ALL_MUSCLES.forEach((m) => {
+      lastTrainedMap[m] = null;
+    });
+
+    workoutsList.forEach((w) => {
+      const wDate = new Date(w.date);
+      const sets = w.workout_sets || w.sets || [];
+      sets.forEach((set: any) => {
+        let muscle = set.exercises?.muscle_group || set.muscle_group || '';
+        if (muscle) {
+          muscle = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
+          if (muscle === 'Core') muscle = 'Abs';
+          if (ALL_MUSCLES.includes(muscle)) {
+            if (!lastTrainedMap[muscle] || wDate > lastTrainedMap[muscle]!) {
+              lastTrainedMap[muscle] = wDate;
+            }
+          }
+        }
+      });
+    });
+
+    const untrained: string[] = [];
+    Object.keys(lastTrainedMap).forEach((muscle) => {
+      const lastDate = lastTrainedMap[muscle];
+      if (lastDate) {
+        const diffMs = today.getTime() - lastDate.getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays >= 5) {
+          untrained.push(`${muscle} (${diffDays}d ago)`);
+        }
+      } else {
+        // Never trained, suggest it as well
+        untrained.push(muscle);
+      }
+    });
+    setUntrainedMuscles(untrained);
+
+    // 2. Calculate Muscle Focus Insight
+    // Count frequency of each exercise name in the last 15 workouts
+    const exerciseCounts: { [key: string]: { count: number; muscle: string } } = {};
+    workoutsList.slice(-15).forEach((w) => {
+      const sets = w.workout_sets || w.sets || [];
+      const uniqueInWorkout = new Set<string>();
+      sets.forEach((set: any) => {
+        const name = set.exercises?.name || set.exercise_name;
+        const muscle = set.exercises?.muscle_group || set.muscle_group;
+        if (name && muscle) {
+          uniqueInWorkout.add(`${name}::${muscle}`);
+        }
+      });
+
+      uniqueInWorkout.forEach((key) => {
+        const [name, muscle] = key.split('::');
+        if (!exerciseCounts[name]) {
+          exerciseCounts[name] = { count: 0, muscle };
+        }
+        exerciseCounts[name].count++;
+      });
+    });
+
+    // Find if user has trained a specific exercise >= 3 times, but has NOT trained another exercise for the same muscle group
+    let selectedInsight: { frequent: string; target: string; note: string } | null = null;
+    
+    // Sort exercise counts descending
+    const sortedCounts = Object.keys(exerciseCounts)
+      .map(name => ({ name, ...exerciseCounts[name] }))
+      .sort((a, b) => b.count - a.count);
+
+    const frequentEx = sortedCounts.find(e => e.count >= 3);
+    if (frequentEx) {
+      const targetMuscle = frequentEx.muscle;
+      // Find other exercises for the same muscle group that the user has NEVER trained in the last 15 workouts
+      const untriedVariations = MOCK_EXERCISES.filter((ex) => {
+        return ex.muscle_group.toLowerCase() === targetMuscle.toLowerCase() && 
+               ex.name.toLowerCase() !== frequentEx.name.toLowerCase() &&
+               !exerciseCounts[ex.name] &&
+               ex.muscleFocusNote;
+      });
+
+      if (untriedVariations.length > 0) {
+        // Pick the first untried variation
+        const variation = untriedVariations[0];
+        selectedInsight = {
+          frequent: frequentEx.name,
+          target: variation.name,
+          note: variation.muscleFocusNote || ''
+        };
+      }
+    }
+    setFocusInsight(selectedInsight);
+  };
+
   const fetchDashboardData = async () => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startOfDayIso = startOfDay.toISOString().split('T')[0];
 
     if (!user || user.id === 'mock-user-id-12345') {
+      try {
+        const localData = await SecureStore.getItemAsync('govio_workouts');
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          parsed.forEach((w: any) => {
+            if (!MOCK_WORKOUTS.some((item) => item.id === w.id)) {
+              MOCK_WORKOUTS.push(w);
+            }
+          });
+          MOCK_WORKOUTS.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
+      } catch (e) {
+        console.error('Error loading mock workouts:', e);
+      }
+
       // Set mock data in development bypass mode
       setProfile(MOCK_PROFILE);
       setMetrics(MOCK_METRICS);
@@ -427,6 +388,11 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       } else {
         setTodayWorkout({ logged: false, exerciseCount: 0 });
       }
+
+      // Calculate streak
+      const mockDates = MOCK_WORKOUTS.map((w) => w.date).filter(Boolean);
+      setStreak(calculateStreak(mockDates));
+      processSuggestions(MOCK_WORKOUTS);
 
       // Check mock food logs list
       const todayMockLogs = MOCK_FOOD_LOGS.filter(l => new Date(l.logged_at) >= startOfDay);
@@ -521,6 +487,30 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         setTodayWorkout({ logged: false, exerciseCount: 0 });
       }
 
+      // Fetch all workouts to calculate streak and suggestions
+      const { data: allWorkoutsData, error: allWorkoutsErr } = await supabase
+        .from('workouts')
+        .select(`
+          id,
+          date,
+          workout_sets (
+            exercise_id,
+            exercises (
+              id,
+              name,
+              muscle_group,
+              muscle_focus_note
+            )
+          )
+        `)
+        .eq('user_id', user.id);
+      
+      if (!allWorkoutsErr && allWorkoutsData) {
+        const dates = allWorkoutsData.map((w: any) => w.date).filter(Boolean);
+        setStreak(calculateStreak(dates));
+        processSuggestions(allWorkoutsData);
+      }
+
       // 5. Fetch today's food logs joined with food item details
       const { data: foodLogsData, error: foodLogsErr } = await supabase
         .from('food_logs')
@@ -575,7 +565,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
   const fetchExercises = async () => {
     if (!user || user.id === 'mock-user-id-12345') {
-      setExercisesList(MOCK_EXERCISES);
+      const customs = await getLocalCustomExercises();
+      setExercisesList([...MOCK_EXERCISES, ...customs]);
       return;
     }
     try {
@@ -588,7 +579,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       setExercisesList(data || []);
     } catch (err) {
       console.error('Error fetching exercises:', err);
-      setExercisesList(MOCK_EXERCISES);
+      const customs = await getLocalCustomExercises();
+      setExercisesList([...MOCK_EXERCISES, ...customs]);
     }
   };
 
@@ -894,6 +886,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                           e.muscle_group.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
     
+    // Search query active: search across all muscle groups by name/muscle name
+    if (searchQuery.trim() !== '') return true;
+    
     if (selectedCategory === 'All') return true;
     
     const cat = selectedCategory.toLowerCase();
@@ -943,14 +938,14 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         {activeTab === 'home' && (() => {
           const MUSCLE_GROUPS = [
             { key: 'Chest', icon: '💪', label: 'Chest' },
-            { key: 'Back', icon: '🪵', label: 'Back' },
-            { key: 'Shoulders', icon: '📐', label: 'Shoulders' },
-            { key: 'Biceps', icon: '⚡', label: 'Biceps' },
-            { key: 'Triceps', icon: '💥', label: 'Triceps' },
+            { key: 'Back', icon: '🦅', label: 'Back' },
+            { key: 'Shoulders', icon: '🔱', label: 'Shoulders' },
+            { key: 'Biceps', icon: '🔥', label: 'Biceps' },
+            { key: 'Triceps', icon: '⚡', label: 'Triceps' },
             { key: 'Legs', icon: '🦵', label: 'Legs' },
-            { key: 'Abs', icon: '🍫', label: 'Abs' },
+            { key: 'Abs', icon: '🧱', label: 'Abs' },
             { key: 'Forearms', icon: '✊', label: 'Forearms' },
-            { key: 'Glutes', icon: '🍑', label: 'Glutes' },
+            { key: 'Glutes', icon: '🎯', label: 'Glutes' },
             { key: 'Calves', icon: '👟', label: 'Calves' },
           ];
 
@@ -961,6 +956,11 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                 <View>
                   <Text style={styles.headerSubtitle}>WELCOME BACK</Text>
                   <Text style={styles.headerTitle}>Hello, {getGreeting()}</Text>
+                  {streak > 0 && (
+                    <View style={styles.streakBadge}>
+                      <Text style={styles.streakBadgeText}>🔥 {streak} {streak === 1 ? 'DAY' : 'DAYS'} STREAK</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={styles.avatarContainer}>
                   <Text style={styles.avatarText}>
@@ -995,6 +995,56 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               {/* Workouts Sub-Tab */}
               {homeSubTab === 'workouts' && (
                 <View>
+                  {/* Smart Suggestions cards */}
+                  {((untrainedMuscles.length > 0 && !dismissedUntrained) || (focusInsight && !dismissedInsight)) && (
+                    <View style={styles.suggestionsContainer}>
+                      <Text style={styles.suggestionsHeader}>💡 SMART SUGGESTIONS</Text>
+                      
+                      {untrainedMuscles.length > 0 && !dismissedUntrained && (
+                        <View style={styles.suggestionBannerCard}>
+                          <View style={styles.suggestionContentCol}>
+                            <Text style={styles.suggestionBannerTitle}>RECOMMENDED SPLIT</Text>
+                            <Text style={styles.suggestionBannerText}>
+                              It's time to train your lagging areas! You haven't trained{' '}
+                              <Text style={{ color: '#D4FF13', fontWeight: '800' }}>
+                                {untrainedMuscles[0]}
+                              </Text>{' '}
+                              recently.
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.suggestionCloseBtn}
+                            onPress={() => setDismissedUntrained(true)}
+                          >
+                            <Text style={styles.suggestionCloseText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {focusInsight && !dismissedInsight && (
+                        <View style={styles.suggestionBannerCard}>
+                          <View style={styles.suggestionContentCol}>
+                            <Text style={styles.suggestionBannerTitle}>BALANCED DEVELOPMENT</Text>
+                            <Text style={styles.suggestionBannerText}>
+                              You've done {focusInsight.frequent} frequently. Try{' '}
+                              <Text style={{ color: '#D4FF13', fontWeight: '800' }}>
+                                {focusInsight.target}
+                              </Text>{' '}
+                              next session!{'\n'}
+                              <Text style={styles.suggestionFocusNote}>Focus: {focusInsight.note}</Text>
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.suggestionCloseBtn}
+                            onPress={() => setDismissedInsight(true)}
+                          >
+                            <Text style={styles.suggestionCloseText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
                   {/* 10 Muscle Group Cards Grid */}
                   <Text style={styles.gridSectionTitle}>Target Muscle Groups</Text>
                   <View style={styles.muscleGrid}>
@@ -1010,7 +1060,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                           });
                         }}
                       >
-                        <Text style={styles.muscleCardIcon}>{m.icon}</Text>
+                        <MuscleIcon muscleKey={m.key} fallbackEmoji={m.icon} />
                         <Text style={styles.muscleCardLabel}>{m.label}</Text>
                       </TouchableOpacity>
                     ))}
@@ -1105,12 +1155,22 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     )}
 
                     <TouchableOpacity 
-                      style={todayWorkout?.logged ? styles.actionButtonOutline : styles.actionButton}
+                      style={styles.actionButton}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('StartWorkout', { session: session! })}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        Start Active Session ⚡
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={styles.actionButtonOutline}
                       activeOpacity={0.8}
                       onPress={() => navigation.navigate('LogWorkout', { session: session! })}
                     >
-                      <Text style={todayWorkout?.logged ? styles.actionButtonOutlineText : styles.actionButtonText}>
-                        {todayWorkout?.logged ? 'Log Another Workout' : 'Log Workout'}
+                      <Text style={styles.actionButtonOutlineText}>
+                        {todayWorkout?.logged ? 'Log Another Workout' : 'Quick Log'}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1427,7 +1487,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     setEditHeight(profile.height_cm.toString());
                     setEditWeight(profile.weight_kg.toString());
                     setEditGoal(profile.fitness_goal);
-                    setEditActivity(profile.activity_level);
+                    setEditActivity(profile.activity_level as any);
                     setEditFullName(profile.full_name || '');
                     setEditGender(profile.gender || 'prefer_not_to_say');
                     setEditExperience(profile.experience_level || 'beginner');
@@ -1468,6 +1528,10 @@ export default function HomeScreen({ route }: HomeScreenProps) {
             </View>
           </View>
         )}
+
+        {activeTab === 'analytics' && (
+          <AnalyticsView session={session || null} />
+        )}
       </ScrollView>
 
       {/* Floating Bottom Tab Navigator Bar */}
@@ -1495,6 +1559,19 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           </Text>
           <Text style={[styles.tabBarLabel, activeTab === 'exercises' && styles.tabBarTextActive]}>
             Exercises
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabBarItem}
+          activeOpacity={0.8}
+          onPress={() => setActiveTab('analytics')}
+        >
+          <Text style={[styles.tabBarIcon, activeTab === 'analytics' && styles.tabBarTextActive]}>
+            📊
+          </Text>
+          <Text style={[styles.tabBarLabel, activeTab === 'analytics' && styles.tabBarTextActive]}>
+            Analytics
           </Text>
         </TouchableOpacity>
 
@@ -1564,7 +1641,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                 disabled={modalSaving}
               >
                 {modalSaving ? (
-                  <ActivityIndicator color="#121212" size="small" />
+                  <ActivityIndicator color="#0D141D" size="small" />
                 ) : (
                   <Text style={styles.modalSaveButtonText}>Save Weight</Text>
                 )}
@@ -1724,7 +1801,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                 disabled={profileSaving}
               >
                 {profileSaving ? (
-                  <ActivityIndicator color="#121212" size="small" />
+                  <ActivityIndicator color="#0D141D" size="small" />
                 ) : (
                   <Text style={styles.modalSaveButtonText}>Save Details</Text>
                 )}
@@ -1740,11 +1817,11 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1789,7 +1866,7 @@ const styles = StyleSheet.create({
   progressCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 24,
     padding: 20,
     flexDirection: 'row',
@@ -1857,7 +1934,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1896,7 +1973,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginRight: 16,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   workoutCardImage: {
     width: '100%',
@@ -1908,7 +1985,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(18, 18, 18, 0.65)',
+    backgroundColor: 'rgba(13, 20, 29, 0.65)',
     justifyContent: 'flex-end',
     padding: 16,
   },
@@ -1922,7 +1999,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   workoutDifficultyText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 9,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -1945,7 +2022,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 20,
     marginBottom: 16,
     shadowColor: '#000',
@@ -1988,7 +2065,7 @@ const styles = StyleSheet.create({
   calorieDivider: {
     borderLeftWidth: 1.5,
     borderRightWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingHorizontal: 8,
   },
   calorieNumber: {
@@ -2018,7 +2095,7 @@ const styles = StyleSheet.create({
   },
   progressBarOuter: {
     height: 8,
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderRadius: 4,
     overflow: 'hidden',
     marginTop: 8,
@@ -2040,7 +2117,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingTop: 16,
   },
   macroSplitCol: {
@@ -2077,7 +2154,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   actionButtonText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 14,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -2137,11 +2214,11 @@ const styles = StyleSheet.create({
   workoutPlaceholder: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#121212',
+    backgroundColor: '#0D141D',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     marginBottom: 16,
   },
   workoutIconPlaceholder: {
@@ -2178,7 +2255,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#1E1E1E',
     borderTopWidth: 1.5,
-    borderTopColor: '#2D2D37',
+    borderTopColor: '#3D4A3D',
     height: 72,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2222,7 +2299,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 14,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     marginBottom: 16,
   },
   categoryScroll: {
@@ -2235,7 +2312,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginRight: 10,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   categoryPillActive: {
     borderColor: '#D4FF13',
@@ -2260,7 +2337,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
   },
   exerciseIndexContainer: {
     width: 36,
@@ -2356,7 +2433,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingVertical: 14,
     alignItems: 'center',
     marginHorizontal: 4,
@@ -2377,7 +2454,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 16,
     alignItems: 'center',
     marginBottom: 24,
@@ -2399,7 +2476,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingHorizontal: 16,
     marginBottom: 20,
   },
@@ -2409,7 +2486,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#2D2D37',
+    borderBottomColor: '#3D4A3D',
   },
   menuItemText: {
     color: '#FFFFFF',
@@ -2424,7 +2501,7 @@ const styles = StyleSheet.create({
   // Modal Backdrop
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(18, 18, 18, 0.85)',
+    backgroundColor: 'rgba(13, 20, 29, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -2432,7 +2509,7 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 24,
     padding: 24,
     width: '100%',
@@ -2469,10 +2546,10 @@ const styles = StyleSheet.create({
   modalInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingHorizontal: 16,
     marginBottom: 24,
   },
@@ -2515,7 +2592,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalSaveButtonText: {
-    color: '#121212',
+    color: '#0D141D',
     fontSize: 14,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -2532,7 +2609,7 @@ const styles = StyleSheet.create({
   mealGroupContainer: {
     marginTop: 12,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#2D2D37',
+    borderBottomColor: '#3D4A3D',
     paddingBottom: 10,
   },
   mealGroupHeader: {
@@ -2583,11 +2660,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   formInput: {
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     color: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
@@ -2600,20 +2677,20 @@ const styles = StyleSheet.create({
   },
   modalSelectBtn: {
     width: '48%',
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingVertical: 8,
     alignItems: 'center',
     marginBottom: 8,
   },
   modalSelectBtnVertical: {
     width: '100%',
-    backgroundColor: '#242424',
+    backgroundColor: '#192029',
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     paddingVertical: 8,
     alignItems: 'center',
     marginBottom: 6,
@@ -2642,7 +2719,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     padding: 4,
     marginBottom: 20,
   },
@@ -2662,7 +2739,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   subTextActive: {
-    color: '#121212',
+    color: '#0D141D',
   },
   gridSectionTitle: {
     color: '#FFFFFF',
@@ -2680,7 +2757,7 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#2D2D37',
+    borderColor: '#3D4A3D',
     borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 12,
@@ -2691,9 +2768,90 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 6,
   },
+  muscleCardImage: {
+    width: 64,
+    height: 64,
+    marginBottom: 8,
+  },
   muscleCardLabel: {
     color: '#FFFFFF',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 255, 19, 0.1)',
+    borderWidth: 1.5,
+    borderColor: '#D4FF13',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  streakBadgeText: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  suggestionsContainer: {
+    marginBottom: 20,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    borderRadius: 24,
+    padding: 16,
+  },
+  suggestionsHeader: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#D4FF13',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  suggestionBannerCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#0D141D',
+    borderRadius: 16,
+    padding: 12,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  suggestionContentCol: {
+    flex: 1,
+  },
+  suggestionBannerTitle: {
+    color: '#7A7A7A',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  suggestionBannerText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  suggestionFocusNote: {
+    color: '#A0A0A0',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  suggestionCloseBtn: {
+    padding: 2,
+    marginLeft: 8,
+  },
+  suggestionCloseText: {
+    color: '#7A7A7A',
+    fontSize: 12,
     fontWeight: '800',
   },
 });
