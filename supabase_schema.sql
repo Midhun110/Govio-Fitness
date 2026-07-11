@@ -313,3 +313,38 @@ USING (
     AND workouts.user_id = auth.uid()
   )
 );
+
+-- 6. Create Routines Table
+CREATE TABLE IF NOT EXISTS routines (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    exercise_ids TEXT[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Enable Row Level Security
+ALTER TABLE routines ENABLE ROW LEVEL SECURITY;
+
+-- Policies for routines
+DROP POLICY IF EXISTS "Allow select for own routines" ON routines;
+CREATE POLICY "Allow select for own routines" 
+ON routines FOR SELECT TO authenticated 
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Allow insert for own routines" ON routines;
+CREATE POLICY "Allow insert for own routines" 
+ON routines FOR INSERT TO authenticated 
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Allow update for own routines" ON routines;
+CREATE POLICY "Allow update for own routines" 
+ON routines FOR UPDATE TO authenticated 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Allow delete for own routines" ON routines;
+CREATE POLICY "Allow delete for own routines" 
+ON routines FOR DELETE TO authenticated 
+USING (auth.uid() = user_id);
+

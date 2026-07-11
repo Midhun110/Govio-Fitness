@@ -7,7 +7,6 @@ import {
   View,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   SafeAreaView,
   StatusBar,
@@ -117,9 +116,9 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0D141D" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardView}
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
@@ -247,7 +246,7 @@ export default function LoginScreen() {
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#0D141D" />
+                    <ActivityIndicator color="#000000" />
                   ) : (
                     <Text style={styles.primaryButtonText}>Send Passcode</Text>
                   )}
@@ -282,7 +281,7 @@ export default function LoginScreen() {
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#0D141D" />
+                    <ActivityIndicator color="#000000" />
                   ) : (
                     <Text style={styles.primaryButtonText}>Verify & Login</Text>
                   )}
@@ -309,15 +308,16 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   keyboardView: {
     flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: 24,
+    paddingTop: 40,
+    paddingBottom: 40,
   },
   headerContainer: {
     alignItems: 'center',
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
@@ -418,14 +418,14 @@ const styles = StyleSheet.create({
     color: '#A0A0A0',
   },
   input: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     color: '#FFFFFF',
     borderRadius: 16, // highly rounded inputs matching Stitch
     paddingHorizontal: 16,
     paddingVertical: 16,
     fontSize: 15,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   otpInput: {
     textAlign: 'center',
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

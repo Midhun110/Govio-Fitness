@@ -7,7 +7,7 @@ export interface Exercise {
   instructions?: string[];
   form_tips?: string[];
   common_mistakes?: string[];
-  image_url?: string;
+  image_url?: any;
   user_id?: string;
   is_custom?: boolean;
   muscleFocusNote?: string;
@@ -35,7 +35,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid bouncing the bar off your chest."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/chest_bench_press.png')
   },
   {
     "id": "ex-2",
@@ -58,7 +58,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid letting your heels lift off the floor."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/legs_barbell_squat.png')
   },
   {
     "id": "ex-3",
@@ -82,7 +82,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid rounding your lower back."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/back_deadlift.png')
   },
   {
     "id": "ex-4",
@@ -105,7 +105,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Move your head slightly back as the bar passes your face."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/shoulders_overhead_press.png')
   },
   {
     "id": "ex-5",
@@ -128,7 +128,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Fully extend your arms at the bottom of each rep."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/back_pullup.png')
   },
   {
     "id": "ex-6",
@@ -152,7 +152,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Keep your neck neutral, not looking up."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/back_bent_over_row.png')
   },
   {
     "id": "ex-7",
@@ -175,7 +175,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Take controlled, deliberate steps rather than rushing."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/legs_walking_lunge.png')
   },
   {
     "id": "ex-8",
@@ -198,7 +198,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Keep your neck neutral, looking at the floor."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/abs_plank.png')
   },
   {
     "id": "ex-9",
@@ -220,7 +220,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Squeeze the biceps at the top of the movement."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/biceps_barbell_curl.png')
   },
   {
     "id": "ex-10",
@@ -242,7 +242,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Add weight on your lap for extra resistance once bodyweight gets easy."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/triceps_bench_dip.png')
   },
   {
     "id": "ex-11",
@@ -265,7 +265,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Don't let your knees cave inward during the press."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/legs_leg_press.png')
   },
   {
     "id": "ex-12",
@@ -288,7 +288,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Keep your chest up throughout the movement."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/back_lat_pulldown.png')
   },
   {
     "id": "ex-13",
@@ -311,7 +311,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Exhale as you push up."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/chest_pushup.png')
   },
   {
     "id": "ex-14",
@@ -334,7 +334,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Stop the descent once you feel a deep hamstring stretch."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/legs_romanian_deadlift.png')
   },
   {
     "id": "ex-15",
@@ -356,7 +356,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Don't let the dumbbells drift forward or behind your head."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/shoulders_arnold_press.png')
   },
   {
     "id": "ex-16",
@@ -379,7 +379,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Squeeze your chest at the top of each rep."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/chest_incline_dumbbell_press.png')
   },
   {
     "id": "ex-17",
@@ -401,7 +401,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid letting the weights slam at the stretch position."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/chest_cable_fly.png')
   },
   {
     "id": "ex-18",
@@ -424,7 +424,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Control the descent instead of dropping quickly."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/chest_dips.png')
   },
   {
     "id": "ex-19",
@@ -447,7 +447,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Pause briefly at full contraction for better activation."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/back_seated_cable_row.png')
   },
   {
     "id": "ex-20",
@@ -469,7 +469,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Stop at shoulder height to keep tension on the delts."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/shoulders_lateral_raise.png')
   },
   {
     "id": "ex-21",
@@ -492,7 +492,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a lighter weight to prioritize form over load."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/shoulders_face_pull.png')
   },
   {
     "id": "ex-22",
@@ -515,7 +515,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a moderate grip width to reduce joint strain."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/shoulders_upright_row.png')
   },
   {
     "id": "ex-23",
@@ -538,7 +538,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Move at a controlled tempo to maximize tension."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/biceps_hammer_curl.png')
   },
   {
     "id": "ex-24",
@@ -560,7 +560,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid using your shoulder to assist the lift."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/biceps_concentration_curl.png')
   },
   {
     "id": "ex-25",
@@ -582,7 +582,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Don't let your shoulders round forward during the curl."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/biceps_preacher_curl.png')
   },
   {
     "id": "ex-26",
@@ -604,7 +604,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Keep elbows close to your torso."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/biceps_cable_curl.png')
   },
   {
     "id": "ex-27",
@@ -627,7 +627,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Control the bar on the way down."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/triceps_close_grip_bench.png')
   },
   {
     "id": "ex-28",
@@ -647,7 +647,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Fully extend at the bottom for maximum contraction."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/triceps_pushdown.png')
   },
   {
     "id": "ex-29",
@@ -667,7 +667,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a controlled tempo to avoid shoulder strain."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/triceps_overhead_extension.png')
   },
   {
     "id": "ex-30",
@@ -687,7 +687,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid moving your upper arms during the rep."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/triceps_skull_crusher.png')
   },
   {
     "id": "ex-31",
@@ -731,7 +731,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Control the descent instead of dropping quickly."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/abs_hanging_leg_raise.png')
   },
   {
     "id": "ex-33",
@@ -753,7 +753,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a moderate weight to maintain proper form."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/abs_cable_crunch.png')
   },
   {
     "id": "ex-34",
@@ -775,7 +775,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Lift your feet off the floor for an added challenge."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/abs_russian_twist.png')
   },
   {
     "id": "ex-35",
@@ -797,7 +797,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Exhale as you crunch toward each knee."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/abs_bicycle_crunch.png')
   },
   {
     "id": "ex-36",
@@ -817,7 +817,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid using your arms or shoulders to assist the curl."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/forearms_wrist_curl.png')
   },
   {
     "id": "ex-37",
@@ -837,7 +837,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Maintain full forearm contact with your thighs."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/forearms_reverse_wrist_curl.png')
   },
   {
     "id": "ex-38",
@@ -882,7 +882,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Build up hang time gradually to avoid grip fatigue injuries."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/forearms_dead_hang.png')
   },
   {
     "id": "ex-40",
@@ -902,7 +902,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Avoid letting your shoulders shrug up during the hold."
     ],
     "common_mistakes": [],
-    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/forearms_plate_pinch_hold.png')
   },
   {
     "id": "ex-hip-thrust",
@@ -953,6 +953,159 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Bouncing quickly at the bottom using Achilles tendon elasticity.",
       "Not using a full range of motion."
     ],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": require('../../assets/images/exercises/legs_calf_raise.png')
   }
 ];
+
+export const getExerciseImageUrl = (muscleGroup: string) => {
+  const muscle = muscleGroup.toLowerCase();
+  if (muscle === 'chest') {
+    return 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600';
+  }
+  if (muscle === 'back') {
+    return 'https://images.unsplash.com/photo-1603287638312-c001b929411f?q=80&w=600';
+  }
+  if (muscle === 'shoulders') {
+    return 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600';
+  }
+  if (muscle === 'legs' || muscle === 'glutes' || muscle === 'calves') {
+    return 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600';
+  }
+  if (muscle === 'core' || muscle === 'abs') {
+    return 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600';
+  }
+  return 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600';
+};
+
+const nameToLocalAsset: { [key: string]: any } = {
+  "plank": require('../../assets/images/exercises/abs_plank.png'),
+  "hanging leg raise": require('../../assets/images/exercises/abs_hanging_leg_raise.png'),
+  "cable crunch": require('../../assets/images/exercises/abs_cable_crunch.png'),
+  "russian twist": require('../../assets/images/exercises/abs_russian_twist.png'),
+  "bicycle crunch": require('../../assets/images/exercises/abs_bicycle_crunch.png'),
+  
+  "wrist curl": require('../../assets/images/exercises/forearms_wrist_curl.png'),
+  "reverse wrist curl": require('../../assets/images/exercises/forearms_reverse_wrist_curl.png'),
+  "dead hang": require('../../assets/images/exercises/forearms_dead_hang.png'),
+  "plate pinch hold": require('../../assets/images/exercises/forearms_plate_pinch_hold.png'),
+  "bench press": require('../../assets/images/exercises/chest_bench_press.png'),
+  "push-up": require('../../assets/images/exercises/chest_pushup.png'),
+  "incline dumbbell press": require('../../assets/images/exercises/chest_incline_dumbbell_press.png'),
+  "cable chest fly": require('../../assets/images/exercises/chest_cable_fly.png'),
+  "dips (chest focus)": require('../../assets/images/exercises/chest_dips.png'),
+  
+  "deadlift": require('../../assets/images/exercises/back_deadlift.png'),
+  "pull-up": require('../../assets/images/exercises/back_pullup.png'),
+  "bent-over barbell row": require('../../assets/images/exercises/back_bent_over_row.png'),
+  "lat pulldown": require('../../assets/images/exercises/back_lat_pulldown.png'),
+  "seated cable row": require('../../assets/images/exercises/back_seated_cable_row.png'),
+  
+  "overhead press": require('../../assets/images/exercises/shoulders_overhead_press.png'),
+  "arnold press": require('../../assets/images/exercises/shoulders_arnold_press.png'),
+  "lateral raise": require('../../assets/images/exercises/shoulders_lateral_raise.png'),
+  "face pull": require('../../assets/images/exercises/shoulders_face_pull.png'),
+  "upright row": require('../../assets/images/exercises/shoulders_upright_row.png'),
+  
+  "barbell curl": require('../../assets/images/exercises/biceps_barbell_curl.png'),
+  "dumbbell hammer curl": require('../../assets/images/exercises/biceps_hammer_curl.png'),
+  "concentration curl": require('../../assets/images/exercises/biceps_concentration_curl.png'),
+  "preacher curl": require('../../assets/images/exercises/biceps_preacher_curl.png'),
+  "cable curl": require('../../assets/images/exercises/biceps_cable_curl.png'),
+  
+  "bench dip": require('../../assets/images/exercises/triceps_bench_dip.png'),
+  "close-grip bench press": require('../../assets/images/exercises/triceps_close_grip_bench.png'),
+  "tricep pushdown": require('../../assets/images/exercises/triceps_pushdown.png'),
+  "overhead tricep extension": require('../../assets/images/exercises/triceps_overhead_extension.png'),
+  "skull crusher": require('../../assets/images/exercises/triceps_skull_crusher.png'),
+  
+  "barbell squat": require('../../assets/images/exercises/legs_barbell_squat.png'),
+  "walking lunge": require('../../assets/images/exercises/legs_walking_lunge.png'),
+  "leg press": require('../../assets/images/exercises/legs_leg_press.png'),
+  "romanian deadlift": require('../../assets/images/exercises/legs_romanian_deadlift.png'),
+  "calf raise": require('../../assets/images/exercises/legs_calf_raise.png'),
+};
+
+export const getExerciseImageSource = (exercise: { name: string; image_url?: any; muscle_group: string }) => {
+  const nameKey = exercise.name.toLowerCase().trim();
+  if (nameToLocalAsset[nameKey]) {
+    return nameToLocalAsset[nameKey];
+  }
+  
+  const img = exercise.image_url;
+  if (!img) {
+    return { uri: getExerciseImageUrl(exercise.muscle_group) };
+  }
+  
+  if (typeof img === 'string' && img.startsWith('http')) {
+    return { uri: img };
+  }
+  
+  return img;
+};
+
+const nameToLocalVideo: { [key: string]: any } = {
+  // Chest
+  "bench press": require('../../assets/videos/chest_bench_press.mp4'),
+  "push-up": require('../../assets/videos/chest_pushup.mp4'),
+  "incline dumbbell press": require('../../assets/videos/chest_incline_dumbbell_press.mp4'),
+  "cable chest fly": require('../../assets/videos/chest_cable_fly.mp4'),
+  "dips (chest focus)": require('../../assets/videos/chest_dips.mp4'),
+
+  // Back
+  "deadlift": require('../../assets/videos/back_deadlift.mp4'),
+  "pull-up": require('../../assets/videos/back_pullup.mp4'),
+  "bent-over barbell row": require('../../assets/videos/back_bent_over_row.mp4'),
+  "lat pulldown": require('../../assets/videos/back_lat_pulldown.mp4'),
+  "seated cable row": require('../../assets/videos/back_seated_cable_row.mp4'),
+
+  // Shoulders
+  "overhead press": require('../../assets/videos/shoulders_overhead_press.mp4'),
+  "arnold press": require('../../assets/videos/shoulders_arnold_press.mp4'),
+  "lateral raise": require('../../assets/videos/shoulders_lateral_raise.mp4'),
+  "face pull": require('../../assets/videos/shoulders_face_pull.mp4'),
+  "upright row": require('../../assets/videos/shoulders_upright_row.mp4'),
+
+  // Biceps
+  "barbell curl": require('../../assets/videos/biceps_barbell_curl.mp4'),
+  "dumbbell hammer curl": require('../../assets/videos/biceps_hammer_curl.mp4'),
+  "concentration curl": require('../../assets/videos/biceps_concentration_curl.mp4'),
+  "preacher curl": require('../../assets/videos/biceps_preacher_curl.mp4'),
+  "cable curl": require('../../assets/videos/biceps_cable_curl.mp4'),
+
+  // Triceps
+  "bench dip": require('../../assets/videos/triceps_bench_dip.mp4'),
+  "close-grip bench press": require('../../assets/videos/triceps_close_grip_bench.mp4'),
+  "tricep pushdown": require('../../assets/videos/triceps_pushdown.mp4'),
+  "overhead tricep extension": require('../../assets/videos/triceps_overhead_extension.mp4'),
+  "skull crusher": require('../../assets/videos/triceps_skull_crusher.mp4'),
+
+  // Legs
+  "barbell squat": require('../../assets/videos/legs_barbell_squat.mp4'),
+  "walking lunge": require('../../assets/videos/legs_walking_lunge.mp4'),
+  "leg press": require('../../assets/videos/legs_leg_press.mp4'),
+  "romanian deadlift": require('../../assets/videos/legs_romanian_deadlift.mp4'),
+  "calf raise": require('../../assets/videos/legs_calf_raise.mp4'),
+  "standing calf raise": require('../../assets/videos/legs_calf_raise.mp4'),
+
+  // Abs
+  "plank": require('../../assets/videos/abs_plank.mp4'),
+  "hanging leg raise": require('../../assets/videos/abs_hanging_leg_raise.mp4'),
+  "cable crunch": require('../../assets/videos/abs_cable_crunch.mp4'),
+  "russian twist": require('../../assets/videos/abs_russian_twist.mp4'),
+  "bicycle crunch": require('../../assets/videos/abs_bicycle_crunch.mp4'),
+
+  // Forearms
+  "wrist curl": require('../../assets/videos/forearms_wrist_curl.mp4'),
+  "reverse wrist curl": require('../../assets/videos/forearms_reverse_wrist_curl.mp4'),
+  "farmer's carry": require('../../assets/videos/forearms_farmers_carry.mp4'),
+  "dead hang": require('../../assets/videos/forearms_dead_hang.mp4'),
+  "plate pinch hold": require('../../assets/videos/forearms_plate_pinch_hold.mp4'),
+};
+
+export const getExerciseVideoSource = (exercise: { name: string }) => {
+  const nameKey = exercise.name.toLowerCase().trim();
+  if (nameToLocalVideo[nameKey]) {
+    return nameToLocalVideo[nameKey];
+  }
+  return null;
+};

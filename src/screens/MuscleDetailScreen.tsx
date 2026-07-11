@@ -5,7 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { Exercise } from '../utils/calculations';
-import { MOCK_EXERCISES } from '../data/exercisesData';
+import { MOCK_EXERCISES, getExerciseImageSource } from '../data/exercisesData';
 import { getLocalCustomExercises, addLocalCustomExercise } from '../utils/customExercises';
 import { triggerSuccessHaptic } from '../utils/haptics';
 
@@ -226,10 +226,7 @@ export default function MuscleDetailScreen() {
     return unsubscribe;
   }, [muscleGroup, navigation]);
 
-  const { height: windowHeight } = useWindowDimensions();
-  const scaleStyle = Platform.OS === 'web' && windowHeight < 900
-    ? { transform: [{ scale: Math.max(0.65, windowHeight / 920) }], transformOrigin: 'top center' }
-    : {};
+  const scaleStyle = {};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -278,9 +275,10 @@ export default function MuscleDetailScreen() {
                     })}
                   >
                     <Image
-                      source={{ uri: exercise.image_url || getExerciseImageUrl(exercise.muscle_group) }}
+                      source={getExerciseImageSource(exercise)}
                       style={styles.cardImage}
                       resizeMode="cover"
+                      {...({ loading: 'lazy' } as any)}
                     />
                     <View style={styles.cardBody}>
                       <Text style={styles.cardMuscleTag}>
@@ -419,7 +417,7 @@ export default function MuscleDetailScreen() {
                   disabled={submitting}
                 >
                   {submitting ? (
-                    <ActivityIndicator size="small" color="#0D141D" />
+                    <ActivityIndicator size="small" color="#000000" />
                   ) : (
                     <Text style={styles.modalSubmitBtnText}>SAVE EXERCISE</Text>
                   )}
@@ -436,7 +434,7 @@ export default function MuscleDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   innerContainer: {
     flex: 1,
@@ -450,7 +448,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#3D4A3D',
+    borderBottomColor: '#222222',
   },
   backButton: {
     marginRight: 16,
@@ -508,7 +506,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     marginBottom: 16,
     overflow: 'hidden',
   },
@@ -540,7 +538,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#3D4A3D',
+    borderTopColor: '#222222',
     paddingTop: 8,
   },
   cardLink: {
@@ -569,18 +567,18 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   addBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   modalContent: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -589,7 +587,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#3D4A3D',
+    borderBottomColor: '#222222',
   },
   modalCancelBtn: {
     paddingVertical: 4,
@@ -630,7 +628,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
@@ -639,7 +637,7 @@ const styles = StyleSheet.create({
   },
   formInputDisabled: {
     opacity: 0.6,
-    backgroundColor: '#151C25',
+    backgroundColor: '#181818',
   },
   formInputMultiline: {
     height: 100,
@@ -662,7 +660,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   modalSubmitBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

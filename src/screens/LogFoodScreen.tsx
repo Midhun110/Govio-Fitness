@@ -354,11 +354,11 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   backBtn: {
     paddingVertical: 6,
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   searchBar: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     color: '#FFFFFF',
     padding: 14,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1.5,
-    backgroundColor: '#3D4A3D',
+    backgroundColor: '#222222',
   },
   emptyPlaceholder: {
     alignItems: 'center',
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     padding: 16,
     marginBottom: 16,
   },
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 20,
     borderTopWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     paddingTop: 16,
   },
   nutrientPreviewBox: {
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     padding: 20,
   },
   inputContainer: {
@@ -508,10 +508,10 @@ const styles = StyleSheet.create({
   qtyInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     paddingHorizontal: 12,
   },
   qtyInput: {
@@ -532,9 +532,9 @@ const styles = StyleSheet.create({
   },
   mealTypeBtn: {
     flex: 1,
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   primaryButtonText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

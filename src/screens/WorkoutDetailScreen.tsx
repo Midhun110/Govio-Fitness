@@ -141,7 +141,7 @@ export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   scrollContent: {
     paddingBottom: 110,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#192029',
+    borderColor: '#121212',
   },
   navIconText: {
     color: '#FFFFFF',
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   title: {
     fontSize: 26,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 20,
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   startButtonText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

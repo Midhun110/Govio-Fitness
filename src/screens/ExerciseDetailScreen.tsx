@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions, Modal, TextInput, Alert, KeyboardAvoidingView, Animated } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { Exercise } from '../utils/calculations';
-import { MOCK_EXERCISES } from '../data/exercisesData';
+import { MOCK_EXERCISES, getExerciseImageSource, getExerciseVideoSource } from '../data/exercisesData';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { getLocalCustomExercises, editLocalCustomExercise, deleteLocalCustomExercise } from '../utils/customExercises';
 
 type ExerciseDetailScreenRouteProp = RouteProp<
@@ -32,6 +33,176 @@ export default function ExerciseDetailScreen() {
 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Video player states & handlers
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef<any>(null);
+
+  const handlePlayPause = () => {
+    if (Platform.OS === 'web') {
+      if (videoRef.current) {
+        if (isPlaying) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        } else {
+          videoRef.current.play();
+          setIsPlaying(true);
+        }
+      }
+    } else {
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleMuteUnmute = () => {
+    if (Platform.OS === 'web') {
+      if (videoRef.current) {
+        videoRef.current.muted = !isMuted;
+        setIsMuted(!isMuted);
+      }
+    } else {
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const handleReplay = () => {
+    if (Platform.OS === 'web') {
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+        setIsPlaying(true);
+      }
+    } else {
+      if (nativePlayer) {
+        nativePlayer.seekTo(0);
+        nativePlayer.play();
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  const handleFullscreen = () => {
+    if (Platform.OS === 'web') {
+      if (videoRef.current) {
+        if (videoRef.current.requestFullscreen) {
+          videoRef.current.requestFullscreen();
+        } else if (videoRef.current.webkitRequestFullscreen) {
+          videoRef.current.webkitRequestFullscreen();
+        }
+      }
+    }
+  };
+
+  const videoAsset = exercise ? getExerciseVideoSource(exercise) : null;
+  const resolvedVideoUri = videoAsset 
+    ? (typeof videoAsset === 'number' ? Image.resolveAssetSource(videoAsset)?.uri : videoAsset) 
+    : null;
+
+  let nativePlayer: any = null;
+  if (Platform.OS !== 'web' && resolvedVideoUri) {
+    try {
+      nativePlayer = useVideoPlayer(resolvedVideoUri, (player) => {
+        player.loop = true;
+        player.muted = isMuted;
+        if (isPlaying) {
+          player.play();
+        } else {
+          player.pause();
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to initialize expo-video player on native:", e);
+    }
+  }
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' && nativePlayer) {
+      nativePlayer.muted = isMuted;
+      if (isPlaying) {
+        nativePlayer.play();
+      } else {
+        nativePlayer.pause();
+      }
+    }
+  }, [isPlaying, isMuted, nativePlayer]);
+
+  const renderControlsOverlay = () => {
+    if (!videoAsset) return null;
+    return (
+      <View style={styles.controlsOverlay}>
+        <TouchableOpacity onPress={handlePlayPause} style={styles.controlButton}>
+          <Text style={styles.controlText}>{isPlaying ? '⏸' : '▶'}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity onPress={handleReplay} style={styles.controlButton}>
+          <Text style={styles.controlText}>🔄</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity onPress={handleMuteUnmute} style={styles.controlButton}>
+          <Text style={styles.controlText}>{isMuted ? '🔇' : '🔊'}</Text>
+        </TouchableOpacity>
+        
+        {Platform.OS === 'web' && (
+          <TouchableOpacity onPress={handleFullscreen} style={styles.controlButton}>
+            <Text style={styles.controlText}>⛶</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  const renderVideoSection = () => {
+    if (!exercise || !videoAsset) {
+      return (
+        <Image
+          source={getExerciseImageSource(exercise || { name: '', image_url: '', muscle_group: '' })}
+          style={styles.exerciseImage}
+          resizeMode="cover"
+          {...({ loading: 'lazy' } as any)}
+        />
+      );
+    }
+
+    if (Platform.OS === 'web') {
+      return (
+        <View style={styles.videoContainer}>
+          <video
+            ref={videoRef}
+            src={resolvedVideoUri}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            onLoadStart={() => setIsVideoLoading(true)}
+            onCanPlay={() => setIsVideoLoading(false)}
+            onWaiting={() => setIsVideoLoading(true)}
+            onPlaying={() => setIsVideoLoading(false)}
+          />
+          {isVideoLoading && (
+            <View style={styles.videoLoader}>
+              <ActivityIndicator size="large" color="#D4FF13" />
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.videoContainer}>
+        {nativePlayer && (
+          <VideoView
+            style={{ width: '100%', height: '100%' }}
+            player={nativePlayer}
+            nativeControls={true}
+            contentFit="contain"
+          />
+        )}
+      </View>
+    );
+  };
 
   // Entry animation states
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -224,10 +395,7 @@ export default function ExerciseDetailScreen() {
     fetchExerciseDetails();
   }, [exerciseId]);
 
-  const { height: windowHeight } = useWindowDimensions();
-  const scaleStyle = Platform.OS === 'web' && windowHeight < 900
-    ? { transform: [{ scale: Math.max(0.65, windowHeight / 920) }], transformOrigin: 'top center' }
-    : {};
+  const scaleStyle = {};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -260,15 +428,11 @@ export default function ExerciseDetailScreen() {
               contentContainerStyle={styles.scrollContainer}
               showsVerticalScrollIndicator={false}
             >
-            {/* Exercise Image */}
+            {/* Exercise Video/Image */}
             <View style={styles.imageCard}>
-              <Image
-                source={{ uri: exercise.image_url || getExerciseImageUrl(exercise.muscle_group) }}
-                style={styles.exerciseImage}
-                resizeMode="cover"
-              />
-              <View style={styles.imageOverlay} />
-              <View style={styles.titleInfo}>
+              {renderVideoSection()}
+              <View style={styles.imageOverlay} pointerEvents="none" />
+              <View style={styles.titleInfo} pointerEvents="none">
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <View style={styles.musclesRow}>
                   <View style={styles.muscleBadge}>
@@ -276,6 +440,7 @@ export default function ExerciseDetailScreen() {
                   </View>
                 </View>
               </View>
+              {renderControlsOverlay()}
             </View>
 
             {/* Secondary Muscles */}
@@ -472,7 +637,7 @@ export default function ExerciseDetailScreen() {
                   disabled={submitting}
                 >
                   {submitting ? (
-                    <ActivityIndicator size="small" color="#0D141D" />
+                    <ActivityIndicator size="small" color="#000000" />
                   ) : (
                     <Text style={styles.modalSubmitBtnText}>SAVE CHANGES</Text>
                   )}
@@ -489,7 +654,7 @@ export default function ExerciseDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   innerContainer: {
     flex: 1,
@@ -503,7 +668,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#3D4A3D',
+    borderBottomColor: '#222222',
   },
   backButton: {
     marginRight: 16,
@@ -576,7 +741,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   muscleBadgeText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -585,7 +750,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     padding: 16,
     marginBottom: 16,
   },
@@ -620,7 +785,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     padding: 16,
     marginBottom: 16,
   },
@@ -726,7 +891,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   editBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -752,11 +917,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   modalContent: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -765,7 +930,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: '#3D4A3D',
+    borderBottomColor: '#222222',
   },
   modalCancelBtn: {
     paddingVertical: 4,
@@ -806,7 +971,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
@@ -815,7 +980,7 @@ const styles = StyleSheet.create({
   },
   formInputDisabled: {
     opacity: 0.6,
-    backgroundColor: '#151C25',
+    backgroundColor: '#181818',
   },
   formInputMultiline: {
     height: 100,
@@ -838,10 +1003,48 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   modalSubmitBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  videoContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  videoLoader: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 12,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  controlButton: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  controlText: {
+    color: '#D4FF13',
+    fontSize: 16,
   },
 });

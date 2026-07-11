@@ -28,6 +28,14 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const s = document.createElement('style');
   s.setAttribute('data-govio', 'web-frame');
   s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+    html, body, #root, #root * {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+      -webkit-font-smoothing: antialiased !important;
+      -moz-osx-font-smoothing: grayscale !important;
+      text-rendering: optimizeLegibility !important;
+    }
     html, body {
       height: 100% !important;
       margin: 0 !important;
@@ -41,11 +49,17 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       margin: 0 auto !important;
       overflow-y: auto !important;
       overflow-x: hidden !important;
-      background-color: #0D141D !important;
+      background-color: #000000 !important;
       box-shadow: 0 0 40px rgba(0,0,0,0.6) !important;
       position: relative !important;
       border-left: 1px solid #1E1E24 !important;
       border-right: 1px solid #1E1E24 !important;
+    }
+    #root [style*="font-weight: 900"], 
+    #root [style*="font-weight: 800"], 
+    #root [style*="font-weight: 700"], 
+    #root [style*="font-weight: bold"] {
+      font-family: 'Outfit', sans-serif !important;
     }
   `;
   document.head.appendChild(s);
@@ -72,8 +86,8 @@ export type RootStackParamList = {
   };
   MuscleDetail: { session: Session; muscleGroup: string };
   ExerciseDetail: { session: Session; exerciseId: string; name: string; muscleGroup: string };
-  StartWorkout: { session: Session };
-  ActiveWorkout: { session: Session; exercises: any[]; workoutName: string };
+  StartWorkout: { session: Session; initialMuscleGroup?: string };
+  ActiveWorkout: { session: Session; exercises?: any[]; workoutName?: string; resumeDraft?: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -274,7 +288,7 @@ export default function App() {
           screenOptions={{ 
             headerShown: false,
             animation: 'slide_from_right',
-            contentStyle: { backgroundColor: '#0D141D' },
+            contentStyle: { backgroundColor: '#000000' },
           }}
         >
           {session && session.user ? (
@@ -367,7 +381,7 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },

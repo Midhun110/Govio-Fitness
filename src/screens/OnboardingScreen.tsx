@@ -7,7 +7,6 @@ import {
   View,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   SafeAreaView,
   StatusBar,
@@ -407,7 +406,6 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
               placeholder="e.g. Midhun Nikhil"
               placeholderTextColor="#7A7A7A"
               maxLength={50}
-              autoFocus={true}
               value={fullName}
               onChangeText={setFullName}
             />
@@ -1007,7 +1005,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={styles.keyboardView}
       >
         <View style={styles.progressBarWrapper}>
@@ -1043,7 +1041,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#0D141D" />
+                  <ActivityIndicator color="#000000" />
                 ) : (
                   <Text style={styles.nextButtonText}>
                     {step === 13 ? 'Confirm & Finish' : 'Continue'}
@@ -1061,7 +1059,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   keyboardView: {
     flex: 1,
@@ -1088,7 +1086,7 @@ const styles = StyleSheet.create({
   },
   progressBarOuter: {
     height: 6,
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -1100,16 +1098,15 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingBottom: 24,
-    justifyContent: 'center',
+    paddingBottom: 40,
+    paddingTop: 8,
   },
   card: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderRadius: 24,
     padding: 24,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
-    minHeight: 480,
+    borderColor: '#222222',
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -1133,9 +1130,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   optionCard: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     paddingVertical: 18,
     paddingHorizontal: 16,
@@ -1170,10 +1167,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   dobInput: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     color: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     padding: 16,
     fontSize: 18,
@@ -1186,12 +1183,12 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderRadius: 20,
     padding: 4,
     marginBottom: 30,
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   toggleButton: {
     flex: 1,
@@ -1213,9 +1210,9 @@ const styles = StyleSheet.create({
   singleInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 24,
     paddingHorizontal: 24,
     height: 72,
@@ -1253,9 +1250,9 @@ const styles = StyleSheet.create({
     maxHeight: 280,
   },
   optionItem: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
@@ -1283,7 +1280,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     paddingVertical: 12,
   },
   summaryLabelCol: {
@@ -1321,7 +1318,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 30, // rounded pill
     paddingVertical: 16,
     alignItems: 'center',
@@ -1370,10 +1367,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   largeTextInput: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     color: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     padding: 16,
     fontSize: 18,
@@ -1394,9 +1391,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   pillCard: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 20,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -1424,9 +1421,9 @@ const styles = StyleSheet.create({
   },
   halfOptionCard: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',

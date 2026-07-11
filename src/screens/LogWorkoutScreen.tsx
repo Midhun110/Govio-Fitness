@@ -815,11 +815,11 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
   notesInput: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     color: '#FFFFFF',
     padding: 14,
@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E1E',
     borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderStyle: 'dashed',
     padding: 30,
     alignItems: 'center',
@@ -878,7 +878,7 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 24,
     padding: 16,
     marginBottom: 16,
@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
   setsTable: {
     marginBottom: 16,
     borderTopWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     paddingTop: 12,
   },
   tableHeader: {
@@ -931,7 +931,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomWidth: 1.5,
-    borderColor: '#0D141D',
+    borderColor: '#000000',
     alignItems: 'center',
   },
   tableCell: {
@@ -945,9 +945,9 @@ const styles = StyleSheet.create({
     color: '#D4FF13',
   },
   exerciseNotesInput: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 8,
     color: '#FFFFFF',
     paddingHorizontal: 12,
@@ -956,9 +956,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tableInput: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 8,
     color: '#FFFFFF',
     paddingVertical: 4,
@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     borderTopWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     paddingTop: 16,
   },
   inputContainer: {
@@ -997,9 +997,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   setFieldInput: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 12,
     color: '#FFFFFF',
     padding: 10,
@@ -1016,12 +1016,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logSetBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 13,
     fontWeight: '900',
   },
   addBtn: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
     borderColor: '#D4FF13',
     borderRadius: 30, // pill
@@ -1054,7 +1054,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   finishBtnText: {
-    color: '#0D141D',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '900',
     textTransform: 'uppercase',
@@ -1098,9 +1098,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   timerControlBtn: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -1117,7 +1117,7 @@ const styles = StyleSheet.create({
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   modalTitle: {
     fontSize: 18,
@@ -1141,7 +1141,7 @@ const styles = StyleSheet.create({
   searchBar: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 16,
     color: '#FFFFFF',
     padding: 12,
@@ -1168,7 +1168,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1.5,
-    backgroundColor: '#3D4A3D',
+    backgroundColor: '#222222',
   },
   flatListContent: {
     paddingBottom: 40,
@@ -1196,9 +1196,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   lastPerformanceBox: {
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 12,
     padding: 10,
     marginBottom: 12,

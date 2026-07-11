@@ -12,6 +12,7 @@ export interface UserProfile {
   preferred_workout_environment?: 'gym' | 'home' | 'outdoor' | 'calisthenics';
   injuries_limitations?: string;
   dietary_preference?: 'veg' | 'non_veg' | 'vegan' | 'eggetarian';
+  weekly_session_goal?: number;
 }
 
 export interface Exercise {

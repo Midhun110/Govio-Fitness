@@ -304,11 +304,11 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   backBtn: {
     paddingVertical: 6,
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   workoutCard: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 24, // highly rounded corners
     marginBottom: 14,
     overflow: 'hidden',
@@ -393,14 +393,14 @@ const styles = StyleSheet.create({
   },
   detailsBox: {
     borderTopWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     padding: 16,
-    backgroundColor: '#0D141D',
+    backgroundColor: '#000000',
   },
   notesContainer: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 12,
     padding: 12,
     marginBottom: 16,
@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   exerciseName: {
     fontSize: 15,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   exerciseNotesBox: {
     backgroundColor: '#1E1E1E',
     borderWidth: 1,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
@@ -459,12 +459,12 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   setsGrid: {
-    backgroundColor: '#192029',
+    backgroundColor: '#121212',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
   },
   setRow: {
     flexDirection: 'row',
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
   },
   multiWorkoutSeparator: {
     borderTopWidth: 1.5,
-    borderColor: '#3D4A3D',
+    borderColor: '#222222',
     marginTop: 16,
     paddingTop: 16,
   },

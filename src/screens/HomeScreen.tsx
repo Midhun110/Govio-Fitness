@@ -15,6 +15,8 @@ import {
   Image,
   FlatList,
   Platform,
+  Animated,
+  Switch,
 } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -25,7 +27,15 @@ import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../uti
 import AnalyticsView from '../components/AnalyticsView';
 import { MOCK_EXERCISES } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
+import {
+  getNotificationSettings,
+  saveNotificationSettings,
+  requestNotificationPermissions,
+  scheduleWorkoutReminders,
+  NotificationSettings
+} from '../utils/notifications';
 import * as SecureStore from 'expo-secure-store';
+import Svg, { Path, Rect, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 const calculateStreak = (workoutDates: string[]): number => {
   if (workoutDates.length === 0) return 0;
@@ -71,6 +81,313 @@ const calculateStreak = (workoutDates: string[]): number => {
   return currentStreak;
 };
 
+const getMondayOfDate = (date: Date): Date => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+const getSessionsCompletedThisWeek = (workoutDates: string[]): number => {
+  const thisWeekMonday = getMondayOfDate(new Date()).getTime();
+  const uniqueDates = Array.from(new Set(workoutDates.map(d => {
+    const dateObj = new Date(d);
+    dateObj.setHours(0, 0, 0, 0);
+    return dateObj.toDateString();
+  })));
+  return uniqueDates.filter((d) => {
+    const workoutTime = new Date(d).getTime();
+    return workoutTime >= thisWeekMonday;
+  }).length;
+};
+
+const calculateVolumeForWorkouts = (workouts: any[]): number => {
+  let volume = 0;
+  workouts.forEach((w) => {
+    const sets = w.workout_sets || w.sets || [];
+    sets.forEach((s: any) => {
+      const weight = parseFloat(s.weight_kg) || 0;
+      const reps = parseInt(s.reps, 10) || 0;
+      volume += weight * reps;
+    });
+  });
+  return volume;
+};
+
+const calculateWeeklyStreak = (workoutDates: string[]): number => {
+  if (workoutDates.length === 0) return 0;
+
+  const uniqueMondays = Array.from(
+    new Set(
+      workoutDates.map((d) => {
+        const monday = getMondayOfDate(new Date(d));
+        return monday.getTime();
+      })
+    )
+  ).sort((a, b) => b - a);
+
+  const thisWeekMonday = getMondayOfDate(new Date()).getTime();
+  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+  const lastWeekMonday = thisWeekMonday - oneWeekMs;
+
+  const hasThisWeek = uniqueMondays.includes(thisWeekMonday);
+  const hasLastWeek = uniqueMondays.includes(lastWeekMonday);
+
+  if (!hasThisWeek && !hasLastWeek) {
+    return 0;
+  }
+
+  let streak = 0;
+  let expectedMonday = hasThisWeek ? thisWeekMonday : lastWeekMonday;
+
+  while (uniqueMondays.includes(expectedMonday)) {
+    streak++;
+    expectedMonday -= oneWeekMs;
+  }
+
+  return streak;
+};
+
+const getSuggestedMuscleGroup = (workoutsList: any[]): { muscle: string; daysAgo: number | null } => {
+  const ALL_MUSCLES = [
+    'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'
+  ];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const lastTrainedMap: { [key: string]: Date } = {};
+  ALL_MUSCLES.forEach((m) => {
+    lastTrainedMap[m] = new Date(0);
+  });
+
+  workoutsList.forEach((w) => {
+    if (!w.date) return;
+    const wDate = new Date(w.date);
+    wDate.setHours(0, 0, 0, 0);
+    const sets = w.workout_sets || w.sets || [];
+    sets.forEach((set: any) => {
+      let muscle = set.exercises?.muscle_group || set.muscle_group || '';
+      if (muscle) {
+        muscle = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
+        if (muscle === 'Core') muscle = 'Abs';
+        if (ALL_MUSCLES.includes(muscle)) {
+          if (wDate > lastTrainedMap[muscle]) {
+            lastTrainedMap[muscle] = wDate;
+          }
+        }
+      }
+    });
+  });
+
+  let stalestMuscle = ALL_MUSCLES[0];
+  let oldestDate = lastTrainedMap[stalestMuscle];
+
+  ALL_MUSCLES.forEach((m) => {
+    if (lastTrainedMap[m] < oldestDate) {
+      oldestDate = lastTrainedMap[m];
+      stalestMuscle = m;
+    }
+  });
+
+  const oldestTime = oldestDate.getTime();
+  if (oldestTime === 0) {
+    return { muscle: stalestMuscle, daysAgo: null };
+  } else {
+    const diffMs = today.getTime() - oldestTime;
+    const daysAgo = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    return { muscle: stalestMuscle, daysAgo };
+  }
+};
+
+const HomeIcon = ({ active }: { active: boolean }) => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    {active && (
+      <Defs>
+        <LinearGradient id="homeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#D4FF13" />
+          <Stop offset="100%" stopColor="#00E676" />
+        </LinearGradient>
+      </Defs>
+    )}
+    <Path
+      d="M3 10.182V20a2 2 0 002 2h14a2 2 0 002-2v-9.818M3 10.182L12 3l9 7.182"
+      stroke={active ? "url(#homeGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M9 22v-6a1 1 0 011-1h4a1 1 0 011 1v6"
+      stroke={active ? "url(#homeGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      strokeLinecap="round"
+      fill={active ? "rgba(212, 255, 19, 0.15)" : "none"}
+    />
+  </Svg>
+);
+
+const ExercisesIcon = ({ active }: { active: boolean }) => (
+  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+    {active && (
+      <Defs>
+        <LinearGradient id="exGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#D4FF13" />
+          <Stop offset="100%" stopColor="#00E676" />
+        </LinearGradient>
+      </Defs>
+    )}
+    {/* Left Plates */}
+    <Rect
+      x={2}
+      y={5}
+      width={3}
+      height={14}
+      rx={1.5}
+      fill={active ? "url(#exGrad)" : "none"}
+      stroke={active ? "none" : "#7A7A7A"}
+      strokeWidth={active ? 0 : 2}
+    />
+    <Rect
+      x={6}
+      y={7}
+      width={2}
+      height={10}
+      rx={1}
+      fill={active ? "url(#exGrad)" : "none"}
+      stroke={active ? "none" : "#7A7A7A"}
+      strokeWidth={active ? 0 : 2}
+      opacity={0.8}
+    />
+    {/* Shaft with knurling details */}
+    <Path
+      d="M8 12h8"
+      stroke={active ? "url(#exGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    {active && (
+      <>
+        <Path d="M10 10v4M12 10v4M14 10v4" stroke="rgba(13, 20, 29, 0.5)" strokeWidth={1} />
+      </>
+    )}
+    {/* Right Plates */}
+    <Rect
+      x={16}
+      y={7}
+      width={2}
+      height={10}
+      rx={1}
+      fill={active ? "url(#exGrad)" : "none"}
+      stroke={active ? "none" : "#7A7A7A"}
+      strokeWidth={active ? 0 : 2}
+      opacity={0.8}
+    />
+    <Rect
+      x={19}
+      y={5}
+      width={3}
+      height={14}
+      rx={1.5}
+      fill={active ? "url(#exGrad)" : "none"}
+      stroke={active ? "none" : "#7A7A7A"}
+      strokeWidth={active ? 0 : 2}
+    />
+  </Svg>
+);
+
+const AnalyticsIcon = ({ active }: { active: boolean }) => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    {active && (
+      <Defs>
+        <LinearGradient id="anGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#D4FF13" />
+          <Stop offset="100%" stopColor="#00E676" />
+        </LinearGradient>
+      </Defs>
+    )}
+    {/* Axis */}
+    <Path
+      d="M3 3v16a2 2 0 002 2h16"
+      stroke={active ? "url(#anGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* Transparent Background Columns */}
+    <Rect
+      x={6}
+      y={12}
+      width={3}
+      height={6}
+      rx={1}
+      fill={active ? "rgba(212, 255, 19, 0.15)" : "none"}
+    />
+    <Rect
+      x={11}
+      y={8}
+      width={3}
+      height={10}
+      rx={1}
+      fill={active ? "rgba(212, 255, 19, 0.15)" : "none"}
+    />
+    <Rect
+      x={16}
+      y={5}
+      width={3}
+      height={13}
+      rx={1}
+      fill={active ? "rgba(212, 255, 19, 0.15)" : "none"}
+    />
+    {/* Trend Line Overlay */}
+    <Path
+      d="M6 14l5-4 5-3 3.5 3.5"
+      stroke={active ? "url(#anGrad)" : "#7A7A7A"}
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle
+      cx={19.5}
+      cy={10.5}
+      r={2}
+      fill={active ? "#00E676" : "#7A7A7A"}
+      stroke={active ? "#D4FF13" : "none"}
+      strokeWidth={1}
+    />
+  </Svg>
+);
+
+const ProfileIcon = ({ active }: { active: boolean }) => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    {active && (
+      <Defs>
+        <LinearGradient id="profGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#D4FF13" />
+          <Stop offset="100%" stopColor="#00E676" />
+        </LinearGradient>
+      </Defs>
+    )}
+    <Circle
+      cx={12}
+      cy={8}
+      r={4.5}
+      stroke={active ? "url(#profGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      fill={active ? "rgba(212, 255, 19, 0.1)" : "none"}
+    />
+    <Path
+      d="M4.5 21a7.5 7.5 0 0115 0"
+      stroke={active ? "url(#profGrad)" : "#7A7A7A"}
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
 type HomeScreenProps = {
   route?: {
     params?: {
@@ -109,6 +426,8 @@ const POPULAR_WORKOUTS = [
     difficulty: 'Intermediate',
     calories: '220 Kcal',
     description: 'A high-intensity interval training designed to burn fat rapidly, improve cardiovascular endurance, and kickstart your metabolism.',
+    goal_tags: ['lose', 'maintain'],
+    experience_level: 'intermediate',
     exercisesList: [
       { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '60 sec' },
       { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '12 reps' },
@@ -122,6 +441,8 @@ const POPULAR_WORKOUTS = [
     difficulty: 'Advanced',
     calories: '380 Kcal',
     description: 'Focus on building lean muscle mass and power across your chest, back, shoulders, and arms with this heavy compound routine.',
+    goal_tags: ['gain', 'maintain'],
+    experience_level: 'advanced',
     exercisesList: [
       { id: 'ex-1', name: 'Bench Press', muscle_group: 'chest', sets: 4, reps: '8-10 reps' },
       { id: 'ex-5', name: 'Pull-up', muscle_group: 'back', sets: 4, reps: '8 reps' },
@@ -136,10 +457,54 @@ const POPULAR_WORKOUTS = [
     difficulty: 'Beginner',
     calories: '150 Kcal',
     description: 'Strengthen your core foundation, improve your posture, and enhance stability with this bodyweight-only routine.',
+    goal_tags: ['lose', 'maintain', 'gain'],
+    experience_level: 'beginner',
     exercisesList: [
       { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '45 sec' },
       { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '10 reps' },
       { id: 'ex-2', name: 'Squat', muscle_group: 'legs', sets: 3, reps: '15 reps' },
+    ],
+  },
+  {
+    id: 'popular-4',
+    title: 'Fat Blast Circuit',
+    duration: '25 Min',
+    difficulty: 'Beginner',
+    calories: '260 Kcal',
+    description: 'A metabolic conditioning circuit designed to maximize calorie burn, fat loss, and endurance.',
+    goal_tags: ['lose'],
+    experience_level: 'beginner',
+    exercisesList: [
+      { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '45 sec' },
+      { id: 'ex-7', name: 'Lunges', muscle_group: 'legs', sets: 3, reps: '12 reps' },
+    ],
+  },
+  {
+    id: 'popular-5',
+    title: 'Hypertrophy Power Split',
+    duration: '50 Min',
+    difficulty: 'Advanced',
+    calories: '410 Kcal',
+    description: 'Heavy lifting focused on triggering maximum muscle hypertrophy for advanced lifters looking to gain muscle.',
+    goal_tags: ['gain'],
+    experience_level: 'advanced',
+    exercisesList: [
+      { id: 'ex-1', name: 'Bench Press', muscle_group: 'chest', sets: 4, reps: '8-10 reps' },
+      { id: 'ex-6', name: 'Barbell Row', muscle_group: 'back', sets: 3, reps: '10 reps' },
+    ],
+  },
+  {
+    id: 'popular-6',
+    title: 'Full Body Conditioning',
+    duration: '35 Min',
+    difficulty: 'Intermediate',
+    calories: '300 Kcal',
+    description: 'A balanced full body conditioning routine using compound movements to maintain fitness level.',
+    goal_tags: ['maintain', 'lose'],
+    experience_level: 'intermediate',
+    exercisesList: [
+      { id: 'ex-2', name: 'Squat', muscle_group: 'legs', sets: 3, reps: '15 reps' },
+      { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '10 reps' },
     ],
   },
 ];
@@ -190,6 +555,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [activeTab, setActiveTab] = useState<'home' | 'exercises' | 'profile' | 'analytics'>('home');
   const [homeSubTab, setHomeSubTab] = useState<'workouts' | 'trackers'>('workouts');
 
+
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -207,12 +574,120 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   // Today's workout state
   const [todayWorkout, setTodayWorkout] = useState<{ logged: boolean; exerciseCount: number } | null>(null);
   const [streak, setStreak] = useState(0);
+  
+  // Dashboard stats state
+  const [thisWeekSessions, setThisWeekSessions] = useState(0);
+  const [thisWeekVolume, setThisWeekVolume] = useState(0);
+  const [weeklyStreak, setWeeklyStreak] = useState(0);
+  const [suggestedMuscle, setSuggestedMuscle] = useState<{ muscle: string; daysAgo: number | null }>({ muscle: 'Chest', daysAgo: null });
+  const [draftWorkout, setDraftWorkout] = useState<any>(null);
+  const sessionProgressAnim = React.useRef(new Animated.Value(0)).current;
+
+  // Weekly activity chart tab
+  const [weeklyMetricTab, setWeeklyMetricTab] = useState<'workouts' | 'calories' | 'water'>('workouts');
 
   // Smart suggestions states
   const [untrainedMuscles, setUntrainedMuscles] = useState<string[]>([]);
   const [focusInsight, setFocusInsight] = useState<{ frequent: string; target: string; note: string } | null>(null);
   const [dismissedUntrained, setDismissedUntrained] = useState(false);
   const [dismissedInsight, setDismissedInsight] = useState(false);
+
+  // Notification states
+  const [allWorkoutDates, setAllWorkoutDates] = useState<string[]>([]);
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
+    masterEnabled: false,
+    streakRemindersEnabled: true,
+    reengagementRemindersEnabled: true,
+  });
+
+  const syncReminders = async (workoutDates: string[]) => {
+    try {
+      await scheduleWorkoutReminders(workoutDates);
+    } catch (err) {
+      console.error('Failed to sync workout reminders:', err);
+    }
+  };
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const settings = await getNotificationSettings();
+      setNotifSettings(settings);
+    };
+    loadSettings();
+  }, []);
+
+  const handleMasterToggle = async (val: boolean) => {
+    let granted = true;
+    if (val) {
+      granted = await requestNotificationPermissions();
+      if (!granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please enable notifications in your device settings to receive reminders.'
+        );
+      }
+    }
+    
+    const updated = {
+      ...notifSettings,
+      masterEnabled: val && granted,
+    };
+    
+    setNotifSettings(updated);
+    await saveNotificationSettings(updated);
+    await scheduleWorkoutReminders(allWorkoutDates);
+  };
+
+  const handleSettingToggle = async (key: keyof NotificationSettings, val: boolean) => {
+    const updated = {
+      ...notifSettings,
+      [key]: val,
+    };
+    setNotifSettings(updated);
+    await saveNotificationSettings(updated);
+    await scheduleWorkoutReminders(allWorkoutDates);
+  };
+
+  const getRecommendedWorkouts = () => {
+    const userGoal = profile?.fitness_goal || 'maintain';
+    const userLevel = profile?.experience_level || 'intermediate';
+
+    return [...POPULAR_WORKOUTS].map(w => {
+      const goalMatch = w.goal_tags.includes(userGoal as any);
+      const levelMatch = w.experience_level.toLowerCase() === userLevel.toLowerCase();
+      
+      let score = 0;
+      let matchReason = '';
+      
+      if (goalMatch && levelMatch) {
+        score = 3;
+        matchReason = 'Goal & Level Match';
+      } else if (goalMatch) {
+        score = 2;
+        matchReason = 'Matches your goal';
+      } else if (levelMatch) {
+        score = 1;
+        matchReason = 'Matches your level';
+      }
+
+      return {
+        ...w,
+        score,
+        matchReason,
+        isMatch: score > 0,
+      };
+    }).sort((a, b) => b.score - a.score);
+  };
+
+  const getRecommendationSubtext = () => {
+    const goal = profile?.fitness_goal || 'maintain';
+    const level = profile?.experience_level || 'intermediate';
+    
+    const goalLabel = getGoalLabel(goal);
+    const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
+    
+    return `Based on your ${goalLabel} goal and ${levelLabel} level`;
+  };
 
   // Weight Logging Modal State
   const [showWeightModal, setShowWeightModal] = useState(false);
@@ -344,6 +819,54 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     setFocusInsight(selectedInsight);
   };
 
+  const checkDraftWorkout = async () => {
+    try {
+      const draftKey = 'govio_draft_workout';
+      const draftStr = Platform.OS === 'web'
+        ? window.localStorage.getItem(draftKey)
+        : await SecureStore.getItemAsync(draftKey);
+      
+      if (draftStr) {
+        const draft = JSON.parse(draftStr);
+        if (draft && draft.activeExercises && draft.activeExercises.length > 0) {
+          setDraftWorkout(draft);
+          return;
+        }
+      }
+      setDraftWorkout(null);
+    } catch (e) {
+      console.error('Error checking draft workout:', e);
+      setDraftWorkout(null);
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    Alert.alert(
+      'Discard Draft',
+      'Are you sure you want to discard your draft workout session?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const draftKey = 'govio_draft_workout';
+              if (Platform.OS === 'web') {
+                window.localStorage.removeItem(draftKey);
+              } else {
+                await SecureStore.deleteItemAsync(draftKey);
+              }
+              setDraftWorkout(null);
+            } catch (e) {
+              console.error('Error clearing draft workout:', e);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const fetchDashboardData = async () => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -389,10 +912,30 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         setTodayWorkout({ logged: false, exerciseCount: 0 });
       }
 
-      // Calculate streak
+      // Calculate streak and dashboard weekly metrics
       const mockDates = MOCK_WORKOUTS.map((w) => w.date).filter(Boolean);
       setStreak(calculateStreak(mockDates));
       processSuggestions(MOCK_WORKOUTS);
+
+      const mockSessionsThisWeek = getSessionsCompletedThisWeek(mockDates);
+      setThisWeekSessions(mockSessionsThisWeek);
+
+      const monOffset = getMondayOfDate(new Date()).getTime();
+      const mockThisWeekWorkouts = MOCK_WORKOUTS.filter((w) => {
+        if (!w.date) return false;
+        const wTime = new Date(w.date).getTime();
+        return wTime >= monOffset;
+      });
+      const mockVolThisWeek = calculateVolumeForWorkouts(mockThisWeekWorkouts);
+      setThisWeekVolume(mockVolThisWeek);
+
+      const mockWkStreak = calculateWeeklyStreak(mockDates);
+      setWeeklyStreak(mockWkStreak);
+
+      const mockSugMuscle = getSuggestedMuscleGroup(MOCK_WORKOUTS);
+      setSuggestedMuscle(mockSugMuscle);
+
+      await checkDraftWorkout();
 
       // Check mock food logs list
       const todayMockLogs = MOCK_FOOD_LOGS.filter(l => new Date(l.logged_at) >= startOfDay);
@@ -415,6 +958,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       setProteinConsumed(Math.round(pSum));
       setCarbsConsumed(Math.round(cSum));
       setFatConsumed(Math.round(fSum));
+
+      setAllWorkoutDates(mockDates);
+      syncReminders(mockDates);
 
       setLoading(false);
       setRefreshing(false);
@@ -495,6 +1041,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           date,
           workout_sets (
             exercise_id,
+            weight_kg,
+            reps,
             exercises (
               id,
               name,
@@ -509,7 +1057,30 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         const dates = allWorkoutsData.map((w: any) => w.date).filter(Boolean);
         setStreak(calculateStreak(dates));
         processSuggestions(allWorkoutsData);
+
+        const realSessionsThisWeek = getSessionsCompletedThisWeek(dates);
+        setThisWeekSessions(realSessionsThisWeek);
+
+        const monOffset = getMondayOfDate(new Date()).getTime();
+        const realThisWeekWorkouts = allWorkoutsData.filter((w: any) => {
+          if (!w.date) return false;
+          const wTime = new Date(w.date).getTime();
+          return wTime >= monOffset;
+        });
+        const realVolThisWeek = calculateVolumeForWorkouts(realThisWeekWorkouts);
+        setThisWeekVolume(realVolThisWeek);
+
+        const realWkStreak = calculateWeeklyStreak(dates);
+        setWeeklyStreak(realWkStreak);
+
+        const realSugMuscle = getSuggestedMuscleGroup(allWorkoutsData);
+        setSuggestedMuscle(realSugMuscle);
+
+        setAllWorkoutDates(dates);
+        syncReminders(dates);
       }
+
+      await checkDraftWorkout();
 
       // 5. Fetch today's food logs joined with food item details
       const { data: foodLogsData, error: foodLogsErr } = await supabase
@@ -588,6 +1159,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     React.useCallback(() => {
       fetchDashboardData();
       fetchExercises();
+      checkDraftWorkout();
     }, [user])
   );
 
@@ -824,6 +1396,20 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     return 'Midhun';
   };
 
+  const getTimeAwareGreeting = () => {
+    const hour = new Date().getHours();
+    const name = getGreeting();
+    if (hour >= 5 && hour < 12) {
+      return { label: 'GOOD MORNING', title: `Good morning, ${name}` };
+    } else if (hour >= 12 && hour < 17) {
+      return { label: 'GOOD AFTERNOON', title: `Good afternoon, ${name}` };
+    } else if (hour >= 17 && hour < 21) {
+      return { label: 'GOOD EVENING', title: `Good evening, ${name}` };
+    } else {
+      return { label: 'WELCOME BACK', title: `Welcome back, ${name}` };
+    }
+  };
+
   const getAge = (dobString?: string) => {
     if (!dobString) return 25;
     const dob = new Date(dobString);
@@ -954,8 +1540,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               {/* Header Section */}
               <View style={styles.header}>
                 <View>
-                  <Text style={styles.headerSubtitle}>WELCOME BACK</Text>
-                  <Text style={styles.headerTitle}>Hello, {getGreeting()}</Text>
+                  <Text style={styles.headerSubtitle}>{getTimeAwareGreeting().label}</Text>
+                  <Text style={styles.headerTitle}>{getTimeAwareGreeting().title}</Text>
                   {streak > 0 && (
                     <View style={styles.streakBadge}>
                       <Text style={styles.streakBadgeText}>🔥 {streak} {streak === 1 ? 'DAY' : 'DAYS'} STREAK</Text>
@@ -995,87 +1581,195 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               {/* Workouts Sub-Tab */}
               {homeSubTab === 'workouts' && (
                 <View>
-                  {/* Smart Suggestions cards */}
-                  {((untrainedMuscles.length > 0 && !dismissedUntrained) || (focusInsight && !dismissedInsight)) && (
-                    <View style={styles.suggestionsContainer}>
-                      <Text style={styles.suggestionsHeader}>💡 SMART SUGGESTIONS</Text>
-                      
-                      {untrainedMuscles.length > 0 && !dismissedUntrained && (
-                        <View style={styles.suggestionBannerCard}>
-                          <View style={styles.suggestionContentCol}>
-                            <Text style={styles.suggestionBannerTitle}>RECOMMENDED SPLIT</Text>
-                            <Text style={styles.suggestionBannerText}>
-                              It's time to train your lagging areas! You haven't trained{' '}
-                              <Text style={{ color: '#D4FF13', fontWeight: '800' }}>
-                                {untrainedMuscles[0]}
-                              </Text>{' '}
-                              recently.
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.suggestionCloseBtn}
-                            onPress={() => setDismissedUntrained(true)}
-                          >
-                            <Text style={styles.suggestionCloseText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
+                  {/* Quick-Start Button */}
+                  <TouchableOpacity
+                    style={styles.dashboardQuickStartBtn}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('StartWorkout', { session: session! })}
+                  >
+                    <Text style={styles.dashboardQuickStartBtnText}>START WORKOUT SESSION ⚡</Text>
+                  </TouchableOpacity>
 
-                      {focusInsight && !dismissedInsight && (
-                        <View style={styles.suggestionBannerCard}>
-                          <View style={styles.suggestionContentCol}>
-                            <Text style={styles.suggestionBannerTitle}>BALANCED DEVELOPMENT</Text>
-                            <Text style={styles.suggestionBannerText}>
-                              You've done {focusInsight.frequent} frequently. Try{' '}
-                              <Text style={{ color: '#D4FF13', fontWeight: '800' }}>
-                                {focusInsight.target}
-                              </Text>{' '}
-                              next session!{'\n'}
-                              <Text style={styles.suggestionFocusNote}>Focus: {focusInsight.note}</Text>
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.suggestionCloseBtn}
-                            onPress={() => setDismissedInsight(true)}
-                          >
-                            <Text style={styles.suggestionCloseText}>✕</Text>
-                          </TouchableOpacity>
+                  {/* Continue where you left off Draft Card */}
+                  {draftWorkout && (
+                    <View style={styles.draftCard}>
+                      <View style={styles.draftHeaderRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.draftCardTitleLabel}>IN PROGRESS</Text>
+                          <Text style={styles.draftWorkoutName}>
+                            {draftWorkout.workoutName || 'Active Session'}
+                          </Text>
+                          <Text style={styles.draftDetailsText}>
+                            🏋️ {draftWorkout.activeExercises?.length || 0} exercises • ⏱ {Math.floor((draftWorkout.elapsedTime || 0) / 60)}m elapsed
+                          </Text>
                         </View>
-                      )}
+                        <TouchableOpacity
+                          style={styles.draftDiscardBtn}
+                          onPress={handleDiscardDraft}
+                        >
+                          <Text style={styles.draftDiscardBtnText}>✕ Discard</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.draftResumeBtn}
+                        activeOpacity={0.8}
+                        onPress={() => navigation.navigate('ActiveWorkout', { session: session!, resumeDraft: true })}
+                      >
+                        <Text style={styles.draftResumeBtnText}>Resume Session →</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
 
-                  {/* 10 Muscle Group Cards Grid */}
-                  <Text style={styles.gridSectionTitle}>Target Muscle Groups</Text>
-                  <View style={styles.muscleGrid}>
-                    {MUSCLE_GROUPS.map((m) => (
-                      <TouchableOpacity
-                        key={m.key}
-                        style={styles.muscleCard}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          navigation.navigate('MuscleDetail', {
-                            session: session!,
-                            muscleGroup: m.key
-                          });
-                        }}
-                      >
-                        <MuscleIcon muscleKey={m.key} fallbackEmoji={m.icon} />
-                        <Text style={styles.muscleCardLabel}>{m.label}</Text>
-                      </TouchableOpacity>
-                    ))}
+                  {/* "This Week" Summary Card */}
+                  <View style={styles.summaryStatsCard}>
+                    <Text style={styles.statsCardTitleLabel}>THIS WEEK</Text>
+                    <View style={styles.statsCardGrid}>
+                      <View style={styles.statsCardCol}>
+                        <Text style={styles.statsCardValue}>{thisWeekSessions}</Text>
+                        <Text style={styles.statsCardLabel}>Sessions</Text>
+                      </View>
+                      <View style={[styles.statsCardCol, styles.statsCardColDivider]}>
+                        <Text style={styles.statsCardValue}>{thisWeekVolume}</Text>
+                        <Text style={styles.statsCardLabel}>Volume (kg)</Text>
+                      </View>
+                      <View style={styles.statsCardCol}>
+                        <Text style={styles.statsCardValue}>{weeklyStreak}</Text>
+                        <Text style={styles.statsCardLabel}>Streak (Wk)</Text>
+                      </View>
+                    </View>
+
+                    {/* Weekly session goal progress bar */}
+                    {(() => {
+                      const goal = profile?.weekly_session_goal ?? 4;
+                      const progress = Math.min(1, thisWeekSessions / Math.max(1, goal));
+                      const isComplete = thisWeekSessions >= goal;
+
+                      // Animate whenever thisWeekSessions changes
+                      Animated.timing(sessionProgressAnim, {
+                        toValue: progress,
+                        duration: 350,
+                        useNativeDriver: false,
+                      }).start();
+
+                      const barColor = sessionProgressAnim.interpolate({
+                        inputRange: [0, 0.9999, 1],
+                        outputRange: ['#D4FF13', '#D4FF13', '#00E676'],
+                      });
+
+                      return (
+                        <View style={styles.sessionGoalContainer}>
+                          <View style={styles.sessionGoalTrack}>
+                            <Animated.View
+                              style={[
+                                styles.sessionGoalFill,
+                                {
+                                  flex: progress,
+                                  backgroundColor: isComplete ? '#00E676' : '#D4FF13',
+                                },
+                              ]}
+                            />
+                          </View>
+                          <View style={styles.sessionGoalLabelRow}>
+                            <Text style={styles.sessionGoalLabel}>
+                              {isComplete ? '✓ ' : ''}{thisWeekSessions} of {goal} sessions
+                            </Text>
+                            {isComplete && (
+                              <Text style={styles.sessionGoalCompleteText}>Goal reached!</Text>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })()}
                   </View>
 
-                  {/* Popular Workouts horizontal scroll */}
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionTitle}>Popular Workouts</Text>
+                  {/* "Suggested Muscle Group" Card */}
+                  <View style={styles.suggestionCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionCardTitleLabel}>RECOMMENDED TARGET</Text>
+                      <Text style={styles.suggestionMuscleName}>
+                        {suggestedMuscle.muscle}
+                      </Text>
+                      <Text style={styles.suggestionLastTrained}>
+                        {suggestedMuscle.daysAgo === null
+                          ? 'Never trained yet'
+                          : `Last trained ${suggestedMuscle.daysAgo} day${suggestedMuscle.daysAgo === 1 ? '' : 's'} ago`}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.suggestionStartBtn}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.navigate('StartWorkout', {
+                        session: session!,
+                        initialMuscleGroup: suggestedMuscle.muscle
+                      })}
+                    >
+                      <Text style={styles.suggestionStartBtnText}>Train Target</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 10 Muscle Group Cards Grid */}
+                  <Text style={styles.gridSectionTitle}>Exercise Library & Form Guides</Text>
+                  <Text style={styles.gridSectionSubtitle}>
+                    Select a muscle group to watch step-by-step tutorial videos, read instructions, and master your form.
+                  </Text>
+                  <View style={styles.muscleGrid}>
+                    {MUSCLE_GROUPS.map((m) => {
+                      const imageSource = MUSCLE_IMAGES[m.key];
+                      return (
+                        <TouchableOpacity
+                          key={m.key}
+                          style={styles.muscleCard}
+                          activeOpacity={0.85}
+                          onPress={() => {
+                            navigation.navigate('MuscleDetail', {
+                              session: session!,
+                              muscleGroup: m.key
+                            });
+                          }}
+                        >
+                          {imageSource ? (
+                            <Image
+                              source={imageSource}
+                              style={styles.muscleCardImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.muscleCardFallbackContainer}>
+                              <Text style={styles.muscleCardIcon}>{m.icon}</Text>
+                            </View>
+                          )}
+
+                          {/* Gradient Overlay */}
+                          <View style={StyleSheet.absoluteFill}>
+                            <Svg width="100%" height="100%">
+                              <Defs>
+                                <LinearGradient id={`cardGrad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                                  <Stop offset="0%" stopColor="transparent" stopOpacity="0" />
+                                  <Stop offset="55%" stopColor="rgba(13, 20, 29, 0.4)" stopOpacity="0.4" />
+                                  <Stop offset="100%" stopColor="rgba(13, 20, 29, 0.95)" stopOpacity="0.95" />
+                                </LinearGradient>
+                              </Defs>
+                              <Rect width="100%" height="100%" fill={`url(#cardGrad-${m.key})`} />
+                            </Svg>
+                          </View>
+
+                          <Text style={styles.muscleCardLabel}>{m.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Recommended For You horizontal scroll */}
+                  <View style={[styles.sectionHeaderRow, { flexDirection: 'column', alignItems: 'flex-start', marginBottom: 12 }]}>
+                    <Text style={styles.sectionTitle}>Recommended For You</Text>
+                    <Text style={styles.recommendationSubtext}>{getRecommendationSubtext()}</Text>
                   </View>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.popularWorkoutsScroll}
                   >
-                    {POPULAR_WORKOUTS.map((workout) => (
+                    {getRecommendedWorkouts().map((workout) => (
                       <TouchableOpacity
                         key={workout.id}
                         style={styles.workoutCard}
@@ -1097,15 +1791,28 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                               ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=600'
                               : workout.id === 'popular-2'
                               ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-                              : 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=600',
+                              : workout.id === 'popular-3'
+                              ? 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=600'
+                              : workout.id === 'popular-4'
+                              ? 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=600'
+                              : workout.id === 'popular-5'
+                              ? 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
+                              : 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600',
                           }}
                           style={styles.workoutCardImage}
                           resizeMode="cover"
                         />
                         <View style={styles.workoutCardOverlay}>
                           <View style={styles.workoutCardContent}>
-                            <View style={styles.workoutDifficultyTag}>
-                              <Text style={styles.workoutDifficultyText}>{workout.difficulty}</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                              <View style={styles.workoutDifficultyTag}>
+                                <Text style={styles.workoutDifficultyText}>{workout.difficulty}</Text>
+                              </View>
+                              {workout.isMatch && (
+                                <View style={styles.recommendationBadge}>
+                                  <Text style={styles.recommendationBadgeText}>{workout.matchReason}</Text>
+                                </View>
+                              )}
                             </View>
                             <Text style={styles.workoutCardTitleText}>{workout.title}</Text>
                             <View style={styles.workoutMetaRow}>
@@ -1117,63 +1824,6 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
-
-                  {/* Workout Card */}
-                  <View style={styles.card}>
-                    <View style={styles.cardHeaderRow}>
-                      <Text style={styles.cardTitle}>Daily Workouts</Text>
-                      <TouchableOpacity
-                        activeOpacity={0.7}
-                        onPress={() => navigation.navigate('WorkoutHistory', { session: session! })}
-                      >
-                        <Text style={styles.linkText}>History</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {todayWorkout?.logged ? (
-                      <View style={styles.workoutSuccessBox}>
-                        <View style={styles.workoutSuccessIconPlaceholder}>
-                          <Text style={styles.workoutSuccessIconText}>✓</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.workoutSuccessTitle}>Workout logged ✓</Text>
-                          <Text style={styles.workoutSuccessSubtitle}>
-                            Logged {todayWorkout.exerciseCount} exercise{todayWorkout.exerciseCount !== 1 ? 's' : ''} today
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <View style={styles.workoutPlaceholder}>
-                        <View style={styles.workoutIconPlaceholder}>
-                          <Text style={{ fontSize: 18 }}>🏋️</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.workoutTitle}>No workout logged today</Text>
-                          <Text style={styles.workoutSubtitle}>Keep active and record your training splits</Text>
-                        </View>
-                      </View>
-                    )}
-
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      activeOpacity={0.8}
-                      onPress={() => navigation.navigate('StartWorkout', { session: session! })}
-                    >
-                      <Text style={styles.actionButtonText}>
-                        Start Active Session ⚡
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity 
-                      style={styles.actionButtonOutline}
-                      activeOpacity={0.8}
-                      onPress={() => navigation.navigate('LogWorkout', { session: session! })}
-                    >
-                      <Text style={styles.actionButtonOutlineText}>
-                        {todayWorkout?.logged ? 'Log Another Workout' : 'Quick Log'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               )}
 
@@ -1215,6 +1865,120 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                       </View>
                     </View>
                   </View>
+
+                  {/* Weekly Activity Bar Chart */}
+                  {(() => {
+                    const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    const today = new Date();
+                    const todayDay = today.getDay(); // 0=Sun
+                    const mondayOffset = todayDay === 0 ? -6 : 1 - todayDay;
+                    const weekDays = DAY_LABELS.map((label, i) => {
+                      const d = new Date(today);
+                      d.setDate(today.getDate() + mondayOffset + i);
+                      d.setHours(0, 0, 0, 0);
+                      const iso = d.toISOString().split('T')[0];
+                      const isToday = i + mondayOffset + todayDay - 1 === todayDay - 1 ||
+                        d.toDateString() === today.toDateString();
+
+                      // Count workouts for that day from MOCK_WORKOUTS
+                      const dayWorkouts = MOCK_WORKOUTS.filter(w => w.date && w.date.startsWith(iso));
+                      const workoutCount = dayWorkouts.length;
+                      // Rough calorie estimate: 300 kcal per workout session
+                      const calBurned = workoutCount * 300;
+                      // Rough water estimate: base 1500 + up to 1000 random seeded by day index
+                      const waterVal = i < todayDay ? 1500 + ((i * 347) % 1000) : 0;
+
+                      let value = 0;
+                      let maxPossible = 1;
+                      if (weeklyMetricTab === 'workouts') {
+                        value = workoutCount;
+                        maxPossible = 2; // bar fills at 2+ workouts
+                      } else if (weeklyMetricTab === 'calories') {
+                        value = calBurned;
+                        maxPossible = 600;
+                      } else {
+                        value = waterVal;
+                        maxPossible = 3000;
+                      }
+                      const barPct = Math.min(1, value / maxPossible);
+                      return { label, iso, isToday, value, barPct, workoutCount };
+                    });
+
+                    const maxBarVal = weeklyMetricTab === 'workouts' ? 2
+                      : weeklyMetricTab === 'calories' ? 600 : 3000;
+
+                    return (
+                      <View style={styles.card}>
+                        <Text style={styles.cardTitle}>Weekly Activity</Text>
+
+                        {/* Tab switcher */}
+                        <View style={{ flexDirection: 'row', backgroundColor: '#111', borderRadius: 10, padding: 3, marginBottom: 16, marginTop: 8 }}>
+                          {(['workouts', 'calories', 'water'] as const).map(tab => (
+                            <TouchableOpacity
+                              key={tab}
+                              onPress={() => setWeeklyMetricTab(tab)}
+                              style={{
+                                flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center',
+                                backgroundColor: weeklyMetricTab === tab ? '#D4FF13' : 'transparent',
+                              }}
+                            >
+                              <Text style={{
+                                fontSize: 11, fontWeight: '800',
+                                color: weeklyMetricTab === tab ? '#000' : '#666',
+                                textTransform: 'capitalize',
+                              }}>
+                                {tab === 'workouts' ? '🏋️ Workouts' : tab === 'calories' ? '🔥 Calories' : '💧 Water'}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+
+                        {/* Bars */}
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 90, justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                          {weekDays.map((day, i) => (
+                            <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+                              <View style={{
+                                width: '70%',
+                                height: 80,
+                                backgroundColor: '#1C1C1C',
+                                borderRadius: 6,
+                                overflow: 'hidden',
+                                justifyContent: 'flex-end',
+                              }}>
+                                <View style={{
+                                  width: '100%',
+                                  height: `${Math.max(day.barPct * 100, day.value > 0 ? 8 : 0)}%`,
+                                  backgroundColor: day.isToday ? '#D4FF13' : '#3A3A3A',
+                                  borderRadius: 6,
+                                }} />
+                              </View>
+                              <Text style={{
+                                fontSize: 10, marginTop: 4,
+                                color: day.isToday ? '#D4FF13' : '#666',
+                                fontWeight: day.isToday ? '800' : '500',
+                              }}>
+                                {day.label}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        {/* Summary */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                          <Text style={{ color: '#666', fontSize: 12 }}>
+                            {weeklyMetricTab === 'workouts'
+                              ? `${weekDays.filter(d => d.workoutCount > 0).length} sessions this week`
+                              : weeklyMetricTab === 'calories'
+                              ? `${weekDays.reduce((s, d) => s + d.value, 0)} kcal burned`
+                              : `${Math.round(weekDays.filter(d => d.value > 0).reduce((s, d) => s + d.value, 0) / 1000 * 10) / 10}L avg hydration`}
+                          </Text>
+                          <Text style={{ color: '#D4FF13', fontSize: 12, fontWeight: '700' }}>
+                            {weeklyMetricTab === 'workouts' ? 'This Week' : weeklyMetricTab === 'calories' ? 'Burned' : 'Hydration'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   {/* Calorie Card */}
                   <View style={styles.card}>
@@ -1477,6 +2241,59 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               </View>
             </View>
 
+            {/* Notifications Settings Box */}
+            <View style={styles.notificationBox}>
+              <Text style={styles.notificationBoxTitle}>Notifications</Text>
+              
+              {/* Master Switch Row */}
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleLabel}>Allow Workout Reminders</Text>
+                  <Text style={styles.toggleSublabel}>Get reminded so you never miss a session</Text>
+                </View>
+                <Switch
+                  value={notifSettings.masterEnabled}
+                  onValueChange={handleMasterToggle}
+                  trackColor={{ false: '#3D4A3D', true: '#D4FF13' }}
+                  thumbColor={notifSettings.masterEnabled ? '#0D141D' : '#7A7A7A'}
+                />
+              </View>
+
+              {notifSettings.masterEnabled && (
+                <>
+                  <View style={styles.toggleDivider} />
+                  {/* Streak Toggle Row */}
+                  <View style={styles.toggleRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.toggleLabel}>Streak Protection</Text>
+                      <Text style={styles.toggleSublabel}>Nudge when your streak is about to break</Text>
+                    </View>
+                    <Switch
+                      value={notifSettings.streakRemindersEnabled}
+                      onValueChange={(val) => handleSettingToggle('streakRemindersEnabled', val)}
+                      trackColor={{ false: '#3D4A3D', true: '#D4FF13' }}
+                      thumbColor={notifSettings.streakRemindersEnabled ? '#0D141D' : '#7A7A7A'}
+                    />
+                  </View>
+
+                  <View style={styles.toggleDivider} />
+                  {/* Re-engagement Toggle Row */}
+                  <View style={styles.toggleRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.toggleLabel}>Re-Engagement Reminders</Text>
+                      <Text style={styles.toggleSublabel}>Nudge after 3+ days of inactivity</Text>
+                    </View>
+                    <Switch
+                      value={notifSettings.reengagementRemindersEnabled}
+                      onValueChange={(val) => handleSettingToggle('reengagementRemindersEnabled', val)}
+                      trackColor={{ false: '#3D4D3D', true: '#D4FF13' }}
+                      thumbColor={notifSettings.reengagementRemindersEnabled ? '#0D141D' : '#7A7A7A'}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+
             {/* Menu List Options */}
             <View style={styles.menuBox}>
               <TouchableOpacity 
@@ -1541,9 +2358,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           activeOpacity={0.8}
           onPress={() => setActiveTab('home')}
         >
-          <Text style={[styles.tabBarIcon, activeTab === 'home' && styles.tabBarTextActive]}>
-            🏠
-          </Text>
+          <View style={styles.tabBarIconContainer}>
+            <HomeIcon active={activeTab === 'home'} />
+          </View>
           <Text style={[styles.tabBarLabel, activeTab === 'home' && styles.tabBarTextActive]}>
             Home
           </Text>
@@ -1554,9 +2371,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           activeOpacity={0.8}
           onPress={() => setActiveTab('exercises')}
         >
-          <Text style={[styles.tabBarIcon, activeTab === 'exercises' && styles.tabBarTextActive]}>
-            🏋️
-          </Text>
+          <View style={styles.tabBarIconContainer}>
+            <ExercisesIcon active={activeTab === 'exercises'} />
+          </View>
           <Text style={[styles.tabBarLabel, activeTab === 'exercises' && styles.tabBarTextActive]}>
             Exercises
           </Text>
@@ -1567,9 +2384,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           activeOpacity={0.8}
           onPress={() => setActiveTab('analytics')}
         >
-          <Text style={[styles.tabBarIcon, activeTab === 'analytics' && styles.tabBarTextActive]}>
-            📊
-          </Text>
+          <View style={styles.tabBarIconContainer}>
+            <AnalyticsIcon active={activeTab === 'analytics'} />
+          </View>
           <Text style={[styles.tabBarLabel, activeTab === 'analytics' && styles.tabBarTextActive]}>
             Analytics
           </Text>
@@ -1580,9 +2397,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           activeOpacity={0.8}
           onPress={() => setActiveTab('profile')}
         >
-          <Text style={[styles.tabBarIcon, activeTab === 'profile' && styles.tabBarTextActive]}>
-            👤
-          </Text>
+          <View style={styles.tabBarIconContainer}>
+            <ProfileIcon active={activeTab === 'profile'} />
+          </View>
           <Text style={[styles.tabBarLabel, activeTab === 'profile' && styles.tabBarTextActive]}>
             Profile
           </Text>
@@ -1961,6 +2778,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  recommendationSubtext: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  recommendationBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(212, 255, 19, 0.15)',
+    borderWidth: 1,
+    borderColor: '#D4FF13',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 6,
+  },
+  recommendationBadgeText: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   popularWorkoutsScroll: {
     paddingRight: 20,
@@ -2755,28 +3594,39 @@ const styles = StyleSheet.create({
   },
   muscleCard: {
     width: '48%',
+    height: 120,
     backgroundColor: '#1E1E1E',
     borderWidth: 1.5,
     borderColor: '#3D4A3D',
     borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    overflow: 'hidden',
     marginBottom: 12,
+    justifyContent: 'flex-end',
   },
   muscleCardIcon: {
     fontSize: 24,
-    marginBottom: 6,
   },
   muscleCardImage: {
-    width: 64,
-    height: 64,
-    marginBottom: 8,
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  muscleCardFallbackContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 20,
   },
   muscleCardLabel: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
+    margin: 12,
+    zIndex: 10,
   },
   streakBadge: {
     flexDirection: 'row',
@@ -2853,5 +3703,253 @@ const styles = StyleSheet.create({
     color: '#7A7A7A',
     fontSize: 12,
     fontWeight: '800',
+  },
+  dashboardQuickStartBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 24,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#D4FF13',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  dashboardQuickStartBtnText: {
+    color: '#0D141D',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  draftCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(212, 255, 19, 0.4)',
+    padding: 20,
+    marginBottom: 20,
+  },
+  draftHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  draftCardTitleLabel: {
+    color: '#D4FF13',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  draftWorkoutName: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  draftDetailsText: {
+    color: '#A0A0A0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  draftDiscardBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  draftDiscardBtnText: {
+    color: '#EF4444',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  draftResumeBtn: {
+    backgroundColor: 'rgba(212, 255, 19, 0.1)',
+    borderWidth: 1,
+    borderColor: '#D4FF13',
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftResumeBtnText: {
+    color: '#D4FF13',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  summaryStatsCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    padding: 20,
+    marginBottom: 20,
+  },
+  statsCardTitleLabel: {
+    color: '#7A7A7A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 16,
+    textTransform: 'uppercase',
+  },
+  statsCardGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  statsCardCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statsCardColDivider: {
+    borderLeftWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: '#3D4A3D',
+  },
+  statsCardValue: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  statsCardLabel: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  sessionGoalContainer: {
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#2E2E2E',
+  },
+  sessionGoalTrack: {
+    height: 6,
+    backgroundColor: '#2E2E2E',
+    borderRadius: 3,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  sessionGoalFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  sessionGoalLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sessionGoalLabel: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  sessionGoalCompleteText: {
+    color: '#00E676',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  suggestionCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    padding: 20,
+    marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  suggestionCardTitleLabel: {
+    color: '#7A7A7A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  suggestionMuscleName: {
+    color: '#D4FF13',
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  suggestionLastTrained: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  suggestionStartBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionStartBtnText: {
+    color: '#0D141D',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  tabBarIconContainer: {
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  gridSectionSubtitle: {
+    color: '#A0A0A0',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 16,
+    fontWeight: '500',
+  },
+  notificationBox: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    padding: 20,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  notificationBoxTitle: {
+    color: '#7A7A7A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 16,
+    textTransform: 'uppercase',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  toggleLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  toggleSublabel: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  toggleDivider: {
+    height: 1,
+    backgroundColor: '#3D4A3D',
+    marginVertical: 10,
   },
 });
