@@ -753,7 +753,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a moderate weight to maintain proper form."
     ],
     "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_cable_crunch.png')
+    "image_url": require('../../assets/images/exercises/abs_cable_crunch.jpg')
   },
   {
     "id": "ex-34",
@@ -980,10 +980,10 @@ export const getExerciseImageUrl = (muscleGroup: string) => {
 const nameToLocalAsset: { [key: string]: any } = {
   "plank": require('../../assets/images/exercises/abs_plank.png'),
   "hanging leg raise": require('../../assets/images/exercises/abs_hanging_leg_raise.png'),
-  "cable crunch": require('../../assets/images/exercises/abs_cable_crunch.png'),
+  "cable crunch": require('../../assets/images/exercises/abs_cable_crunch.jpg'),
   "russian twist": require('../../assets/images/exercises/abs_russian_twist.png'),
   "bicycle crunch": require('../../assets/images/exercises/abs_bicycle_crunch.png'),
-  
+
   "wrist curl": require('../../assets/images/exercises/forearms_wrist_curl.png'),
   "reverse wrist curl": require('../../assets/images/exercises/forearms_reverse_wrist_curl.png'),
   "dead hang": require('../../assets/images/exercises/forearms_dead_hang.png'),
@@ -993,31 +993,31 @@ const nameToLocalAsset: { [key: string]: any } = {
   "incline dumbbell press": require('../../assets/images/exercises/chest_incline_dumbbell_press.png'),
   "cable chest fly": require('../../assets/images/exercises/chest_cable_fly.png'),
   "dips (chest focus)": require('../../assets/images/exercises/chest_dips.png'),
-  
+
   "deadlift": require('../../assets/images/exercises/back_deadlift.png'),
   "pull-up": require('../../assets/images/exercises/back_pullup.png'),
   "bent-over barbell row": require('../../assets/images/exercises/back_bent_over_row.png'),
   "lat pulldown": require('../../assets/images/exercises/back_lat_pulldown.png'),
   "seated cable row": require('../../assets/images/exercises/back_seated_cable_row.png'),
-  
+
   "overhead press": require('../../assets/images/exercises/shoulders_overhead_press.png'),
   "arnold press": require('../../assets/images/exercises/shoulders_arnold_press.png'),
   "lateral raise": require('../../assets/images/exercises/shoulders_lateral_raise.png'),
   "face pull": require('../../assets/images/exercises/shoulders_face_pull.png'),
   "upright row": require('../../assets/images/exercises/shoulders_upright_row.png'),
-  
+
   "barbell curl": require('../../assets/images/exercises/biceps_barbell_curl.png'),
   "dumbbell hammer curl": require('../../assets/images/exercises/biceps_hammer_curl.png'),
   "concentration curl": require('../../assets/images/exercises/biceps_concentration_curl.png'),
   "preacher curl": require('../../assets/images/exercises/biceps_preacher_curl.png'),
   "cable curl": require('../../assets/images/exercises/biceps_cable_curl.png'),
-  
+
   "bench dip": require('../../assets/images/exercises/triceps_bench_dip.png'),
   "close-grip bench press": require('../../assets/images/exercises/triceps_close_grip_bench.png'),
   "tricep pushdown": require('../../assets/images/exercises/triceps_pushdown.png'),
   "overhead tricep extension": require('../../assets/images/exercises/triceps_overhead_extension.png'),
   "skull crusher": require('../../assets/images/exercises/triceps_skull_crusher.png'),
-  
+
   "barbell squat": require('../../assets/images/exercises/legs_barbell_squat.png'),
   "walking lunge": require('../../assets/images/exercises/legs_walking_lunge.png'),
   "leg press": require('../../assets/images/exercises/legs_leg_press.png'),
@@ -1030,16 +1030,16 @@ export const getExerciseImageSource = (exercise: { name: string; image_url?: any
   if (nameToLocalAsset[nameKey]) {
     return nameToLocalAsset[nameKey];
   }
-  
+
   const img = exercise.image_url;
   if (!img) {
     return { uri: getExerciseImageUrl(exercise.muscle_group) };
   }
-  
+
   if (typeof img === 'string' && img.startsWith('http')) {
     return { uri: img };
   }
-  
+
   return img;
 };
 
