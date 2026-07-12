@@ -18,6 +18,7 @@ import MuscleDetailScreen from './src/screens/MuscleDetailScreen';
 import ExerciseDetailScreen from './src/screens/ExerciseDetailScreen';
 import StartWorkoutScreen from './src/screens/StartWorkoutScreen';
 import ActiveWorkoutScreen from './src/screens/ActiveWorkoutScreen';
+import AiChatScreen from './src/screens/AiChatScreen';
 import { NutritionMetrics, calculateNutritionMetrics } from './src/utils/calculations';
 import { getPendingOnboarding, setPendingOnboarding } from './src/utils/pendingOnboarding';
 
@@ -87,7 +88,8 @@ export type RootStackParamList = {
   MuscleDetail: { session: Session; muscleGroup: string };
   ExerciseDetail: { session: Session; exerciseId: string; name: string; muscleGroup: string };
   StartWorkout: { session: Session; initialMuscleGroup?: string };
-  ActiveWorkout: { session: Session; exercises?: any[]; workoutName?: string; resumeDraft?: boolean };
+  ActiveWorkout: { session: Session; exercises?: any[]; workoutName?: string; resumeDraft?: boolean; workoutId?: string };
+  AiChat: { session: Session };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -344,6 +346,11 @@ export default function App() {
                   <Stack.Screen 
                     name="ActiveWorkout" 
                     component={ActiveWorkoutScreen} 
+                  />
+                  <Stack.Screen 
+                    name="AiChat" 
+                    component={AiChatScreen} 
+                    initialParams={{ session }}
                   />
                 </>
               )

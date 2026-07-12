@@ -753,7 +753,7 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Use a moderate weight to maintain proper form."
     ],
     "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_cable_crunch.jpg')
+    "image_url": require('../../assets/images/exercises/abs_cable_crunch.png')
   },
   {
     "id": "ex-34",
@@ -980,7 +980,7 @@ export const getExerciseImageUrl = (muscleGroup: string) => {
 const nameToLocalAsset: { [key: string]: any } = {
   "plank": require('../../assets/images/exercises/abs_plank.png'),
   "hanging leg raise": require('../../assets/images/exercises/abs_hanging_leg_raise.png'),
-  "cable crunch": require('../../assets/images/exercises/abs_cable_crunch.jpg'),
+  "cable crunch": require('../../assets/images/exercises/abs_cable_crunch.png'),
   "russian twist": require('../../assets/images/exercises/abs_russian_twist.png'),
   "bicycle crunch": require('../../assets/images/exercises/abs_bicycle_crunch.png'),
 

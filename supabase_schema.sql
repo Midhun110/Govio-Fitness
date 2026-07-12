@@ -220,6 +220,10 @@ CREATE TABLE IF NOT EXISTS workouts (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
     notes TEXT,
+    status TEXT CHECK (status IN ('in_progress', 'completed', 'abandoned')) DEFAULT 'completed',
+    elapsed_time INT DEFAULT 0,
+    current_idx INT DEFAULT 0,
+    workout_name TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -347,4 +351,25 @@ DROP POLICY IF EXISTS "Allow delete for own routines" ON routines;
 CREATE POLICY "Allow delete for own routines" 
 ON routines FOR DELETE TO authenticated 
 USING (auth.uid() = user_id);
+
+-- 9. Add photo_url to food_logs table
+ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
+-- 10. Create food-logs storage bucket and configure RLS
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('food-logs', 'food-logs', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS policies for food-logs bucket
+CREATE POLICY "Allow users to upload food photos"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'food-logs' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "Allow users to view their own food photos"
+ON storage.objects FOR SELECT TO authenticated
+USING (bucket_id = 'food-logs' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "Allow users to delete their own food photos"
+ON storage.objects FOR DELETE TO authenticated
+USING (bucket_id = 'food-logs' AND (storage.foldername(name))[1] = auth.uid()::text);
 

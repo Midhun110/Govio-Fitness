@@ -25,7 +25,7 @@ import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../utils/calculations';
 import AnalyticsView from '../components/AnalyticsView';
-import { MOCK_EXERCISES } from '../data/exercisesData';
+import { MOCK_EXERCISES, getExerciseImageSource } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
 import {
   getNotificationSettings,
@@ -406,6 +406,7 @@ const MOCK_PROFILE: UserProfile = {
   full_name: 'Midhun Nikhil',
   gender: 'male',
   experience_level: 'intermediate',
+  journey_start_date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
 };
 
 const MOCK_METRICS: NutritionMetrics = {
@@ -513,7 +514,7 @@ const POPULAR_WORKOUTS = [
 
 // Global arrays for mock database in development bypass mode
 export let MOCK_WORKOUTS: Array<{ id: string; date: string; notes: string; exercisesCount: number; sets: any[] }> = [];
-export let MOCK_FOOD_LOGS: Array<{ id: string; user_id: string; food_id: string; quantity_grams: number; logged_at: string; meal_type: string; foods: any }> = [];
+export let MOCK_FOOD_LOGS: Array<{ id: string; user_id: string; food_id: string; quantity_grams: number; logged_at: string; meal_type: string; foods: any; photo_url?: string }> = [];
 
 const MUSCLE_IMAGES: Record<string, any> = {
   Chest: require('../../assets/icons/muscles_real/chest.png'),
@@ -569,6 +570,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [fatConsumed, setFatConsumed] = useState(0);
   const [waterLogged, setWaterLogged] = useState(0);
   const [weight, setWeight] = useState(0);
+  const [weightLogs, setWeightLogs] = useState<any[]>([]);
+  const [activeTooltip, setActiveTooltip] = useState<{ index: number; value: string } | null>(null);
   const [foodLogs, setFoodLogs] = useState<any[]>([]);
   
   // Today's workout state
@@ -582,6 +585,19 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [suggestedMuscle, setSuggestedMuscle] = useState<{ muscle: string; daysAgo: number | null }>({ muscle: 'Chest', daysAgo: null });
   const [draftWorkout, setDraftWorkout] = useState<any>(null);
   const sessionProgressAnim = React.useRef(new Animated.Value(0)).current;
+  const scrollY = React.useRef(new Animated.Value(0)).current;
+  const [weatherTemp, setWeatherTemp] = useState<number | null>(null);
+  const [showWeatherNudge, setShowWeatherNudge] = useState(false);
+  const [signedUrls, setSignedUrls] = useState<{ [key: string]: string }>({});
+  const [activeFullScreenPhoto, setActiveFullScreenPhoto] = useState<string | null>(null);
+
+  const getFoodPhotoUri = (log: any) => {
+    if (!log.photo_url) return null;
+    if (log.photo_url.startsWith('http') || log.photo_url.startsWith('file') || log.photo_url.startsWith('ph') || log.photo_url.startsWith('data:')) {
+      return log.photo_url;
+    }
+    return signedUrls[log.photo_url] || null;
+  };
 
   // Weekly activity chart tab
   const [weeklyMetricTab, setWeeklyMetricTab] = useState<'workouts' | 'calories' | 'water'>('workouts');
@@ -687,6 +703,18 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
     
     return `Based on your ${goalLabel} goal and ${levelLabel} level`;
+  };
+
+  const getWaterGoal = () => {
+    const currentWeight = weight || profile?.weight_kg || 70;
+    const fitnessGoal = profile?.fitness_goal || 'maintain';
+    let baseGoal = currentWeight * 35;
+    if (fitnessGoal === 'lose') {
+      baseGoal += 350;
+    } else if (fitnessGoal === 'gain') {
+      baseGoal += 250;
+    }
+    return Math.round(baseGoal / 50) * 50;
   };
 
   // Weight Logging Modal State
@@ -821,18 +849,110 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
   const checkDraftWorkout = async () => {
     try {
+      // 1. Local storage/SecureStore check for mock user or offline fallback
       const draftKey = 'govio_draft_workout';
       const draftStr = Platform.OS === 'web'
         ? window.localStorage.getItem(draftKey)
         : await SecureStore.getItemAsync(draftKey);
       
-      if (draftStr) {
-        const draft = JSON.parse(draftStr);
-        if (draft && draft.activeExercises && draft.activeExercises.length > 0) {
-          setDraftWorkout(draft);
+      // If we are in dev/mock mode or not logged in, use local draft
+      if (!user || user.id === 'mock-user-id-12345') {
+        if (draftStr) {
+          const draft = JSON.parse(draftStr);
+          if (draft && draft.activeExercises && draft.activeExercises.length > 0) {
+            const muscleGroups = Array.from(new Set(draft.activeExercises.map((ae: any) => ae.exercise?.muscle_group).filter(Boolean)));
+            const muscleText = muscleGroups.join(', ') || 'General';
+            const totalSets = draft.activeExercises.reduce((sum: number, ae: any) => sum + (ae.sets?.length || 0), 0);
+            
+            setDraftWorkout({
+              id: 'local-draft',
+              workoutName: draft.workoutName || 'Active Session',
+              elapsedTime: draft.elapsedTime || 0,
+              currentIdx: draft.currentIdx || 0,
+              exercisesCount: draft.activeExercises.length,
+              setsCount: totalSets,
+              muscleGroup: muscleText,
+              isLocal: true,
+            });
+            return;
+          }
+        }
+        setDraftWorkout(null);
+        return;
+      }
+
+      // 2. Real user: query Supabase workouts
+      const { data: dbDraft, error: dbErr } = await supabase
+        .from('workouts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'in_progress')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (dbErr) {
+        console.warn('Failed to query DB draft:', dbErr);
+        // Fail silently and fall back to local draft
+        if (draftStr) {
+          const draft = JSON.parse(draftStr);
+          if (draft && draft.activeExercises && draft.activeExercises.length > 0) {
+            const muscleGroups = Array.from(new Set(draft.activeExercises.map((ae: any) => ae.exercise?.muscle_group).filter(Boolean)));
+            const muscleText = muscleGroups.join(', ') || 'General';
+            const totalSets = draft.activeExercises.reduce((sum: number, ae: any) => sum + (ae.sets?.length || 0), 0);
+            setDraftWorkout({
+              id: 'local-draft',
+              workoutName: draft.workoutName || 'Active Session',
+              elapsedTime: draft.elapsedTime || 0,
+              currentIdx: draft.currentIdx || 0,
+              exercisesCount: draft.activeExercises.length,
+              setsCount: totalSets,
+              muscleGroup: muscleText,
+              isLocal: true,
+            });
+            return;
+          }
+        }
+        setDraftWorkout(null);
+        return;
+      }
+
+      if (dbDraft) {
+        // Fetch sets for this workout
+        const { data: setsData, error: setsErr } = await supabase
+          .from('workout_sets')
+          .select('*')
+          .eq('workout_id', dbDraft.id);
+
+        if (!setsErr && setsData) {
+          // Fetch exercise info from exercises pool to get muscle groups
+          const { data: exercisesData } = await supabase
+            .from('exercises')
+            .select('id, muscle_group');
+
+          const customExercises = await getLocalCustomExercises();
+          const allExPool = [...(exercisesData || []), ...customExercises];
+
+          const exerciseIds = Array.from(new Set(setsData.map(s => s.exercise_id)));
+          const muscleGroups = Array.from(new Set(
+            exerciseIds.map(id => allExPool.find(e => e.id === id)?.muscle_group).filter(Boolean)
+          ));
+          const muscleText = muscleGroups.join(', ') || 'General';
+
+          setDraftWorkout({
+            id: dbDraft.id,
+            workoutName: dbDraft.workout_name || 'Active Session',
+            elapsedTime: dbDraft.elapsed_time || 0,
+            currentIdx: dbDraft.current_idx || 0,
+            exercisesCount: exerciseIds.length,
+            setsCount: setsData.length,
+            muscleGroup: muscleText,
+            isLocal: false,
+          });
           return;
         }
       }
+
       setDraftWorkout(null);
     } catch (e) {
       console.error('Error checking draft workout:', e);
@@ -842,8 +962,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
   const handleDiscardDraft = async () => {
     Alert.alert(
-      'Discard Draft',
-      'Are you sure you want to discard your draft workout session?',
+      'Discard Session',
+      'Are you sure you want to discard this workout? It will be marked as abandoned.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -851,20 +971,154 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           style: 'destructive',
           onPress: async () => {
             try {
+              if (draftWorkout && !draftWorkout.isLocal && user && user.id !== 'mock-user-id-12345') {
+                await supabase
+                  .from('workouts')
+                  .update({ status: 'abandoned' })
+                  .eq('id', draftWorkout.id);
+              }
+              
+              // Clear local draft
               const draftKey = 'govio_draft_workout';
               if (Platform.OS === 'web') {
                 window.localStorage.removeItem(draftKey);
               } else {
                 await SecureStore.deleteItemAsync(draftKey);
               }
+              
               setDraftWorkout(null);
+              Alert.alert('Session Dismissed', 'Your session has been marked as abandoned.');
             } catch (e) {
-              console.error('Error clearing draft workout:', e);
+              console.error('Error discarding draft workout:', e);
             }
           }
         }
       ]
     );
+  };
+
+  const handleStartWorkoutPress = () => {
+    if (draftWorkout) {
+      Alert.alert(
+        'Active Session In Progress',
+        'You already have an active workout session in progress. What would you like to do?',
+        [
+          {
+            text: 'Resume Old',
+            onPress: () => {
+              navigation.navigate('ActiveWorkout', {
+                session: session!,
+                resumeDraft: true,
+                workoutId: draftWorkout.id,
+              });
+            }
+          },
+          {
+            text: 'Discard & Start Fresh',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                if (!draftWorkout.isLocal && user && user.id !== 'mock-user-id-12345') {
+                  await supabase
+                    .from('workouts')
+                    .update({ status: 'abandoned' })
+                    .eq('id', draftWorkout.id);
+                }
+                
+                // Clear local draft
+                const draftKey = 'govio_draft_workout';
+                if (Platform.OS === 'web') {
+                  window.localStorage.removeItem(draftKey);
+                } else {
+                  await SecureStore.deleteItemAsync(draftKey);
+                }
+                
+                setDraftWorkout(null);
+                navigation.navigate('StartWorkout', { session: session! });
+              } catch (e) {
+                console.error('Error discarding draft workout before starting fresh:', e);
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      navigation.navigate('StartWorkout', { session: session! });
+    }
+  };
+
+  const checkWeatherCache = async () => {
+    try {
+      const cacheStr = Platform.OS === 'web'
+        ? window.localStorage.getItem('govio_weather_cache')
+        : await SecureStore.getItemAsync('govio_weather_cache');
+        
+      if (cacheStr) {
+        const cache = JSON.parse(cacheStr);
+        const ageInMs = Date.now() - cache.timestamp;
+        if (ageInMs < 60 * 60 * 1000) {
+          setWeatherTemp(cache.temp);
+          if (cache.temp >= 28) {
+            setShowWeatherNudge(true);
+          } else {
+            setShowWeatherNudge(false);
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read weather cache:', e);
+    }
+    return false;
+  };
+
+  const fetchWeatherAndHydrationNudge = async () => {
+    try {
+      const Location = require('expo-location');
+      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Location permission denied, skipping weather nudge.');
+        return;
+      }
+      
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Low,
+      });
+      
+      if (loc && loc.coords) {
+        const { latitude, longitude } = loc.coords;
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`;
+        const res = await fetch(weatherUrl);
+        const data = await res.json();
+        
+        if (data && data.current_weather) {
+          const temp = data.current_weather.temperature;
+          setWeatherTemp(temp);
+          if (temp >= 28) {
+            setShowWeatherNudge(true);
+          } else {
+            setShowWeatherNudge(false);
+          }
+          
+          const cacheData = { temp, timestamp: Date.now() };
+          if (Platform.OS === 'web') {
+            window.localStorage.setItem('govio_weather_cache', JSON.stringify(cacheData));
+          } else {
+            await SecureStore.setItemAsync('govio_weather_cache', JSON.stringify(cacheData));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch weather:', e);
+    }
   };
 
   const fetchDashboardData = async () => {
@@ -890,9 +1144,20 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
       // Set mock data in development bypass mode
       setProfile(MOCK_PROFILE);
-      setMetrics(MOCK_METRICS);
+      const computedMockMetrics = calculateNutritionMetrics(MOCK_PROFILE);
+      setMetrics(computedMockMetrics);
       setWeight(MOCK_PROFILE.weight_kg);
       setWaterLogged(500);
+      const mockWeightLogs = [
+        { id: '1', weight_kg: 71.5, created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '2', weight_kg: 71.2, created_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '3', weight_kg: 70.8, created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '4', weight_kg: 71.0, created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '5', weight_kg: 70.5, created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '6', weight_kg: 70.2, created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: '7', weight_kg: 70.0, created_at: new Date().toISOString() },
+      ];
+      setWeightLogs(mockWeightLogs);
       setEditHeight(MOCK_PROFILE.height_cm.toString());
       setEditWeight(MOCK_PROFILE.weight_kg.toString());
       setEditGoal(MOCK_PROFILE.fitness_goal);
@@ -977,8 +1242,32 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         .single();
       
       if (profileErr) throw profileErr;
-      setProfile(profileData);
-      setWeight(profileData.weight_kg);
+      if (profileData) {
+        if (!profileData.journey_start_date) {
+          try {
+            const { data: oldestWorkout } = await supabase
+              .from('workouts')
+              .select('date')
+              .eq('user_id', user.id)
+              .order('date', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            const startDate = oldestWorkout?.date || startOfDayIso;
+
+            await supabase
+              .from('user_profiles')
+              .update({ journey_start_date: startDate })
+              .eq('id', user.id);
+
+            profileData.journey_start_date = startDate;
+          } catch (e) {
+            console.error('Error auto-initializing journey_start_date:', e);
+          }
+        }
+        setProfile(profileData);
+        setWeight(profileData.weight_kg);
+      }
 
       // Populate edit profile modal fields
       setEditHeight(profileData.height_cm.toString());
@@ -997,7 +1286,12 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         .single();
 
       if (metricsErr) throw metricsErr;
-      setMetrics(metricsData);
+      if (profileData) {
+        const computedMetrics = calculateNutritionMetrics(profileData);
+        setMetrics(computedMetrics);
+      } else {
+        setMetrics(metricsData);
+      }
 
       // 3. Fetch today's logged water
       const { data: waterData, error: waterErr } = await supabase
@@ -1090,6 +1384,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           quantity_grams,
           meal_type,
           logged_at,
+          photo_url,
           foods (
             id,
             name,
@@ -1104,6 +1399,33 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
       if (foodLogsErr) throw foodLogsErr;
       setFoodLogs(foodLogsData || []);
+
+      const logsWithPhotos = (foodLogsData || []).filter((l: any) => l.photo_url);
+      if (logsWithPhotos.length > 0 && user.id !== 'mock-user-id-12345') {
+        try {
+          const paths = logsWithPhotos.map((l: any) => l.photo_url);
+          const { data: signedData, error: signedErr } = await supabase.storage
+            .from('food-logs')
+            .createSignedUrls(paths, 3600);
+          
+          if (!signedErr && signedData) {
+            const signedUrlsMap: { [key: string]: string } = {};
+            signedData.forEach((item: any) => {
+              if (item.signedUrl) {
+                const match = paths.find((p: string) => item.path === p || item.path.endsWith(p));
+                if (match) {
+                  signedUrlsMap[match] = item.signedUrl;
+                } else {
+                  signedUrlsMap[item.path] = item.signedUrl;
+                }
+              }
+            });
+            setSignedUrls(signedUrlsMap);
+          }
+        } catch (e) {
+          console.error('Error creating signed URLs:', e);
+        }
+      }
 
       let calSum = 0;
       let pSum = 0;
@@ -1125,6 +1447,22 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       setProteinConsumed(Math.round(pSum));
       setCarbsConsumed(Math.round(cSum));
       setFatConsumed(Math.round(fSum));
+
+      // 6. Fetch weight logs history
+      try {
+        const { data: weightLogsData, error: weightLogsErr } = await supabase
+          .from('weight_logs')
+          .select('id, weight_kg, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(14);
+
+        if (!weightLogsErr && weightLogsData) {
+          setWeightLogs([...weightLogsData].reverse());
+        }
+      } catch (e) {
+        console.error('Error fetching weight logs:', e);
+      }
 
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
@@ -1163,6 +1501,22 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     }, [user])
   );
 
+  useEffect(() => {
+    checkWeatherCache();
+  }, []);
+
+  useEffect(() => {
+    if (homeSubTab === 'trackers') {
+      const run = async () => {
+        const cached = await checkWeatherCache();
+        if (!cached) {
+          await fetchWeatherAndHydrationNudge();
+        }
+      };
+      run();
+    }
+  }, [homeSubTab]);
+
   const handleDeleteFoodLog = async (logId: string) => {
     if (!user || user.id === 'mock-user-id-12345') {
       const idx = MOCK_FOOD_LOGS.findIndex(l => l.id === logId);
@@ -1186,8 +1540,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     }
   };
 
-  const handleLogWater = async () => {
-    setWaterLogged((prev) => prev + 250);
+  const handleLogWater = async (amountMs: number = 250) => {
+    setWaterLogged((prev) => prev + amountMs);
 
     if (!user || user.id === 'mock-user-id-12345') {
       return;
@@ -1196,12 +1550,12 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     try {
       const { error: waterErr } = await supabase.from('water_logs').insert({
         user_id: user.id,
-        amount_ml: 250,
+        amount_ml: amountMs,
       });
       if (waterErr) throw waterErr;
     } catch (err) {
       console.error('Failed to log water:', err);
-      setWaterLogged((prev) => Math.max(0, prev - 250));
+      setWaterLogged((prev) => Math.max(0, prev - amountMs));
     }
   };
 
@@ -1224,6 +1578,14 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           setProfile(updatedProfile);
           setMetrics(newMetrics);
         }
+        // Append weight log
+        const newLog = {
+          id: Math.random().toString(),
+          weight_kg: parsedWeight,
+          created_at: new Date().toISOString(),
+        };
+        setWeightLogs((prev) => [...prev, newLog]);
+
         setModalSaving(false);
         setShowWeightModal(false);
         setInputWeight('');
@@ -1267,6 +1629,14 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         setProfile(updatedProfile);
         setMetrics(newMetrics);
       }
+
+      // Append weight log
+      const newLog = {
+        id: Math.random().toString(),
+        weight_kg: parsedWeight,
+        created_at: new Date().toISOString(),
+      };
+      setWeightLogs((prev) => [...prev, newLog]);
 
       setShowWeightModal(false);
       setInputWeight('');
@@ -1313,6 +1683,15 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           setProfile(updatedProfile);
           setMetrics(newMetrics);
           setWeight(parsedWeight);
+
+          if (profile.weight_kg !== parsedWeight) {
+            const newLog = {
+              id: Math.random().toString(),
+              weight_kg: parsedWeight,
+              created_at: new Date().toISOString(),
+            };
+            setWeightLogs((prev) => [...prev, newLog]);
+          }
         }
         setProfileSaving(false);
         setShowProfileModal(false);
@@ -1367,6 +1746,23 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         setProfile(updatedProfile);
         setMetrics(newMetrics);
         setWeight(parsedWeight);
+
+        if (profile.weight_kg !== parsedWeight) {
+          try {
+            await supabase.from('weight_logs').insert({
+              user_id: user.id,
+              weight_kg: parsedWeight,
+            });
+          } catch (e) {
+            console.error('Failed to log weight from profile update:', e);
+          }
+          const newLog = {
+            id: Math.random().toString(),
+            weight_kg: parsedWeight,
+            created_at: new Date().toISOString(),
+          };
+          setWeightLogs((prev) => [...prev, newLog]);
+        }
       }
 
       setShowProfileModal(false);
@@ -1408,6 +1804,56 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     } else {
       return { label: 'WELCOME BACK', title: `Welcome back, ${name}` };
     }
+  };
+
+  const getJourneyDayNumber = () => {
+    const startDateStr = profile?.journey_start_date;
+    if (!startDateStr) return null;
+
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calculate difference in days (inclusive)
+    const diffTime = Math.abs(today.getTime() - start.getTime());
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays;
+  };
+
+  const getMotivationalMessage = () => {
+    const todayIndex = new Date().getDate(); // Stable per-day value to prevent random rerender flickering
+
+    if (todayWorkout?.logged) {
+      const pool = [
+        "Great going today! 💪",
+        "Session logged — nice work!",
+        "You showed up today. That's what matters.",
+        "Crushed it! Keep up the momentum. 🔥",
+        "Consistency is victory. Great workout!"
+      ];
+      return pool[todayIndex % pool.length];
+    }
+
+    if (streak >= 3) {
+      const pool = [
+        `Day ${streak} streak — don't stop now! ⚡`,
+        "You're on a roll, keep it going!",
+        `Keep that ${streak}-day flame burning! 🔥`,
+        "Consistency looks good on you."
+      ];
+      return pool[todayIndex % pool.length];
+    }
+
+    const pool = [
+      "Ready for today's session?",
+      "Let's make today count! ⚡",
+      "Consistency is the key to progress.",
+      "Small steps every day add up to big results.",
+      "Focus on your goals and take action."
+    ];
+    return pool[todayIndex % pool.length];
   };
 
   const getAge = (dobString?: string) => {
@@ -1512,9 +1958,14 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       <StatusBar barStyle="light-content" />
 
       {/* Main Content Area based on Tab */}
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
         refreshControl={
           activeTab === 'home' ? (
             <RefreshControl refreshing={refreshing} onRefresh={fetchDashboardData} tintColor="#D4FF13" />
@@ -1537,11 +1988,32 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
           return (
             <View>
-              {/* Header Section */}
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.headerSubtitle}>{getTimeAwareGreeting().label}</Text>
+              {/* Header Section with smooth native-driven parallax scroll effects */}
+              <Animated.View style={[styles.header, {
+                opacity: scrollY.interpolate({
+                  inputRange: [0, 150],
+                  outputRange: [1, 0.7],
+                  extrapolate: 'clamp',
+                }),
+                transform: [{
+                  scale: scrollY.interpolate({
+                    inputRange: [0, 150],
+                    outputRange: [1, 0.95],
+                    extrapolate: 'clamp',
+                  })
+                }]
+              }]}>
+                <View style={styles.headerTextContainer}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Text style={styles.headerSubtitle}>{getTimeAwareGreeting().label}</Text>
+                    {getJourneyDayNumber() !== null && (
+                      <View style={styles.dayCounterBadge}>
+                        <Text style={styles.dayCounterBadgeText}>DAY {getJourneyDayNumber()}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.headerTitle}>{getTimeAwareGreeting().title}</Text>
+                  <Text style={styles.motivationalSubtext}>{getMotivationalMessage()}</Text>
                   {streak > 0 && (
                     <View style={styles.streakBadge}>
                       <Text style={styles.streakBadgeText}>🔥 {streak} {streak === 1 ? 'DAY' : 'DAYS'} STREAK</Text>
@@ -1553,7 +2025,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     {getGreeting().charAt(0).toUpperCase()}
                   </Text>
                 </View>
-              </View>
+              </Animated.View>
 
               {/* Sub-Tab Switcher */}
               <View style={styles.subTabContainer}>
@@ -1581,11 +2053,33 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               {/* Workouts Sub-Tab */}
               {homeSubTab === 'workouts' && (
                 <View>
+                  {/* Weather-aware Hydration Nudge Banner */}
+                  {showWeatherNudge && weatherTemp !== null && (
+                    <TouchableOpacity
+                      style={styles.weatherBanner}
+                      activeOpacity={0.9}
+                      onPress={() => setHomeSubTab('trackers')}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Text style={{ fontSize: 20, marginRight: 10 }}>💧</Text>
+                        <Text style={styles.weatherBannerText}>
+                          It's {weatherTemp.toFixed(0)}°C today — stay hydrated!
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{ padding: 6 }}
+                        onPress={() => setShowWeatherNudge(false)}
+                      >
+                        <Text style={{ color: '#06B6D4', fontWeight: '800', fontSize: 14 }}>✕</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Quick-Start Button */}
                   <TouchableOpacity
                     style={styles.dashboardQuickStartBtn}
                     activeOpacity={0.85}
-                    onPress={() => navigation.navigate('StartWorkout', { session: session! })}
+                    onPress={handleStartWorkoutPress}
                   >
                     <Text style={styles.dashboardQuickStartBtnText}>START WORKOUT SESSION ⚡</Text>
                   </TouchableOpacity>
@@ -1595,25 +2089,29 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     <View style={styles.draftCard}>
                       <View style={styles.draftHeaderRow}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.draftCardTitleLabel}>IN PROGRESS</Text>
+                          <Text style={styles.draftCardTitleLabel}>Continue Your Session</Text>
                           <Text style={styles.draftWorkoutName}>
                             {draftWorkout.workoutName || 'Active Session'}
                           </Text>
                           <Text style={styles.draftDetailsText}>
-                            🏋️ {draftWorkout.activeExercises?.length || 0} exercises • ⏱ {Math.floor((draftWorkout.elapsedTime || 0) / 60)}m elapsed
+                            {draftWorkout.muscleGroup} — {draftWorkout.exercisesCount} {draftWorkout.exercisesCount === 1 ? 'exercise' : 'exercises'} logged ({draftWorkout.setsCount} {draftWorkout.setsCount === 1 ? 'set' : 'sets'})
                           </Text>
                         </View>
                         <TouchableOpacity
-                          style={styles.draftDiscardBtn}
+                          style={{ padding: 8, alignSelf: 'flex-start' }}
                           onPress={handleDiscardDraft}
                         >
-                          <Text style={styles.draftDiscardBtnText}>✕ Discard</Text>
+                          <Text style={{ color: '#7A7A7A', fontSize: 18, fontWeight: '800' }}>✕</Text>
                         </TouchableOpacity>
                       </View>
                       <TouchableOpacity
                         style={styles.draftResumeBtn}
                         activeOpacity={0.8}
-                        onPress={() => navigation.navigate('ActiveWorkout', { session: session!, resumeDraft: true })}
+                        onPress={() => navigation.navigate('ActiveWorkout', { 
+                          session: session!, 
+                          resumeDraft: true,
+                          workoutId: draftWorkout.id 
+                        })}
                       >
                         <Text style={styles.draftResumeBtnText}>Resume Session →</Text>
                       </TouchableOpacity>
@@ -1829,7 +2327,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
               {/* Trackers Sub-Tab */}
               {homeSubTab === 'trackers' && (
-                <View>
+                <View style={{ paddingBottom: 140 }}>
                   {/* Today's Progress Card with Progress Circle */}
                   <View style={styles.progressCard}>
                     <View style={styles.progressLeft}>
@@ -1872,40 +2370,55 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     const today = new Date();
                     const todayDay = today.getDay(); // 0=Sun
                     const mondayOffset = todayDay === 0 ? -6 : 1 - todayDay;
-                    const weekDays = DAY_LABELS.map((label, i) => {
+                    
+                    const weekDaysRaw = DAY_LABELS.map((label, i) => {
                       const d = new Date(today);
                       d.setDate(today.getDate() + mondayOffset + i);
                       d.setHours(0, 0, 0, 0);
                       const iso = d.toISOString().split('T')[0];
-                      const isToday = i + mondayOffset + todayDay - 1 === todayDay - 1 ||
-                        d.toDateString() === today.toDateString();
+                      const isToday = d.toDateString() === today.toDateString();
 
-                      // Count workouts for that day from MOCK_WORKOUTS
-                      const dayWorkouts = MOCK_WORKOUTS.filter(w => w.date && w.date.startsWith(iso));
-                      const workoutCount = dayWorkouts.length;
-                      // Rough calorie estimate: 300 kcal per workout session
-                      const calBurned = workoutCount * 300;
-                      // Rough water estimate: base 1500 + up to 1000 random seeded by day index
-                      const waterVal = i < todayDay ? 1500 + ((i * 347) % 1000) : 0;
+                      // Count workouts from allWorkoutDates
+                      const dayWorkoutsCount = allWorkoutDates.filter(dateStr => dateStr.startsWith(iso)).length;
+                      const calBurned = dayWorkoutsCount * 300;
+                      
+                      // Fix water indexing using date comparison
+                      const waterVal = d.toDateString() === today.toDateString()
+                        ? waterLogged 
+                        : (d.getTime() < today.getTime() ? 1500 + ((i * 347) % 1000) : 0);
 
                       let value = 0;
-                      let maxPossible = 1;
                       if (weeklyMetricTab === 'workouts') {
-                        value = workoutCount;
-                        maxPossible = 2; // bar fills at 2+ workouts
+                        value = dayWorkoutsCount;
                       } else if (weeklyMetricTab === 'calories') {
                         value = calBurned;
-                        maxPossible = 600;
                       } else {
                         value = waterVal;
-                        maxPossible = 3000;
                       }
-                      const barPct = Math.min(1, value / maxPossible);
-                      return { label, iso, isToday, value, barPct, workoutCount };
+
+                      return { label, iso, isToday, value, workoutCount: dayWorkoutsCount };
                     });
 
-                    const maxBarVal = weeklyMetricTab === 'workouts' ? 2
-                      : weeklyMetricTab === 'calories' ? 600 : 3000;
+                    const maxValInWeek = Math.max(...weekDaysRaw.map(d => d.value));
+                    let maxPossible = 1;
+                    if (weeklyMetricTab === 'workouts') {
+                      maxPossible = Math.max(2, maxValInWeek);
+                    } else if (weeklyMetricTab === 'calories') {
+                      maxPossible = Math.max(600, maxValInWeek);
+                    } else {
+                      maxPossible = Math.max(3000, maxValInWeek);
+                    }
+
+                    const weekDays = weekDaysRaw.map(day => ({
+                      ...day,
+                      barPct: Math.min(1, day.value / maxPossible),
+                    }));
+
+                    const themeColor = weeklyMetricTab === 'workouts' 
+                      ? '#D4FF13' 
+                      : weeklyMetricTab === 'calories' 
+                      ? '#F97316' 
+                      : '#06B6D4';
 
                     return (
                       <View style={styles.card}>
@@ -1916,10 +2429,13 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                           {(['workouts', 'calories', 'water'] as const).map(tab => (
                             <TouchableOpacity
                               key={tab}
-                              onPress={() => setWeeklyMetricTab(tab)}
+                              onPress={() => {
+                                setWeeklyMetricTab(tab);
+                                setActiveTooltip(null);
+                              }}
                               style={{
                                 flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center',
-                                backgroundColor: weeklyMetricTab === tab ? '#D4FF13' : 'transparent',
+                                backgroundColor: weeklyMetricTab === tab ? themeColor : 'transparent',
                               }}
                             >
                               <Text style={{
@@ -1933,34 +2449,82 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                           ))}
                         </View>
 
-                        {/* Bars */}
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 90, justifyContent: 'space-between', paddingHorizontal: 4 }}>
-                          {weekDays.map((day, i) => (
-                            <View key={i} style={{ alignItems: 'center', flex: 1 }}>
-                              <View style={{
-                                width: '70%',
-                                height: 80,
-                                backgroundColor: '#1C1C1C',
-                                borderRadius: 6,
-                                overflow: 'hidden',
-                                justifyContent: 'flex-end',
-                              }}>
-                                <View style={{
-                                  width: '100%',
-                                  height: `${Math.max(day.barPct * 100, day.value > 0 ? 8 : 0)}%`,
-                                  backgroundColor: day.isToday ? '#D4FF13' : '#3A3A3A',
-                                  borderRadius: 6,
-                                }} />
-                              </View>
-                              <Text style={{
-                                fontSize: 10, marginTop: 4,
-                                color: day.isToday ? '#D4FF13' : '#666',
-                                fontWeight: day.isToday ? '800' : '500',
-                              }}>
-                                {day.label}
+                        {/* Bars container with relative positioning for absolute tooltip */}
+                        <View style={{ position: 'relative', height: 100, justifyContent: 'flex-end', marginBottom: 4 }}>
+                          {activeTooltip && (
+                            <TouchableOpacity 
+                              activeOpacity={1} 
+                              onPress={() => setActiveTooltip(null)}
+                              style={[
+                                styles.tooltipBubble,
+                                {
+                                  left: `${(activeTooltip.index * 14.28) + 7.14}%`,
+                                  borderColor: themeColor,
+                                }
+                              ]}
+                            >
+                              <Text style={[styles.tooltipBubbleText, { color: themeColor }]}>
+                                {activeTooltip.value}
                               </Text>
-                            </View>
-                          ))}
+                            </TouchableOpacity>
+                          )}
+
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 80, justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                            {weekDays.map((day, i) => {
+                              const hasValue = day.value > 0;
+                              const fillColor = day.isToday
+                                ? themeColor
+                                : (weeklyMetricTab === 'workouts' 
+                                    ? 'rgba(212, 255, 19, 0.45)' 
+                                    : weeklyMetricTab === 'calories' 
+                                    ? 'rgba(249, 115, 22, 0.45)' 
+                                    : 'rgba(6, 182, 212, 0.45)');
+
+                              const fillHeight = (hasValue ? `${Math.max(day.barPct * 100, 6)}%` : 4) as any;
+                              const currentFillColor = hasValue ? fillColor : '#2C3540';
+                              
+                              return (
+                                <TouchableOpacity
+                                  key={i}
+                                  activeOpacity={0.8}
+                                  onPress={() => {
+                                    const metricLabel = weeklyMetricTab === 'workouts'
+                                      ? `${day.value} workout${day.value === 1 ? '' : 's'}`
+                                      : weeklyMetricTab === 'calories'
+                                      ? `${day.value} kcal`
+                                      : `${day.value} ml`;
+                                    setActiveTooltip({ index: i, value: `${day.label}: ${metricLabel}` });
+                                  }}
+                                  style={{ alignItems: 'center', flex: 1 }}
+                                >
+                                  <View style={{
+                                    width: '70%',
+                                    height: 80,
+                                    backgroundColor: '#151C25',
+                                    borderRadius: 6,
+                                    overflow: 'hidden',
+                                    justifyContent: 'flex-end',
+                                    borderColor: day.isToday ? themeColor : 'transparent',
+                                    borderWidth: day.isToday ? 1.5 : 0,
+                                  }}>
+                                    <View style={{
+                                      width: '100%',
+                                      height: fillHeight,
+                                      backgroundColor: currentFillColor,
+                                      borderRadius: 6,
+                                    }} />
+                                  </View>
+                                  <Text style={{
+                                    fontSize: 10, marginTop: 4,
+                                    color: day.isToday ? themeColor : '#666',
+                                    fontWeight: day.isToday ? '800' : '500',
+                                  }}>
+                                    {day.label}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
                         </View>
 
                         {/* Summary */}
@@ -1972,7 +2536,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                               ? `${weekDays.reduce((s, d) => s + d.value, 0)} kcal burned`
                               : `${Math.round(weekDays.filter(d => d.value > 0).reduce((s, d) => s + d.value, 0) / 1000 * 10) / 10}L avg hydration`}
                           </Text>
-                          <Text style={{ color: '#D4FF13', fontSize: 12, fontWeight: '700' }}>
+                          <Text style={{ color: themeColor, fontSize: 12, fontWeight: '700' }}>
                             {weeklyMetricTab === 'workouts' ? 'This Week' : weeklyMetricTab === 'calories' ? 'Burned' : 'Hydration'}
                           </Text>
                         </View>
@@ -2020,93 +2584,313 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                       <View style={[styles.macroSplitCol, { borderLeftColor: '#D4FF13' }]}>
                         <Text style={styles.macroName}>Protein</Text>
                         <Text style={styles.macroGrams}>{proteinConsumed}/{metrics?.protein_g || 0}g</Text>
+                        <View style={styles.macroProgressOuter}>
+                          <View style={[
+                            styles.macroProgressInner,
+                            {
+                              width: `${Math.min(100, Math.round((proteinConsumed / Math.max(1, metrics?.protein_g || 1)) * 100))}%`,
+                              backgroundColor: '#D4FF13',
+                            }
+                          ]} />
+                        </View>
                       </View>
                       <View style={[styles.macroSplitCol, { borderLeftColor: '#06B6D4' }]}>
                         <Text style={styles.macroName}>Carbs</Text>
                         <Text style={styles.macroGrams}>{carbsConsumed}/{metrics?.carbs_g || 0}g</Text>
+                        <View style={styles.macroProgressOuter}>
+                          <View style={[
+                            styles.macroProgressInner,
+                            {
+                              width: `${Math.min(100, Math.round((carbsConsumed / Math.max(1, metrics?.carbs_g || 1)) * 100))}%`,
+                              backgroundColor: '#06B6D4',
+                            }
+                          ]} />
+                        </View>
                       </View>
                       <View style={[styles.macroSplitCol, { borderLeftColor: '#F59E0B' }]}>
                         <Text style={styles.macroName}>Fat</Text>
                         <Text style={styles.macroGrams}>{fatConsumed}/{metrics?.fat_g || 0}g</Text>
+                        <View style={styles.macroProgressOuter}>
+                          <View style={[
+                            styles.macroProgressInner,
+                            {
+                              width: `${Math.min(100, Math.round((fatConsumed / Math.max(1, metrics?.fat_g || 1)) * 100))}%`,
+                              backgroundColor: '#F59E0B',
+                            }
+                          ]} />
+                        </View>
                       </View>
                     </View>
                   </View>
+
+                  {/* Ask Govio AI Entry Card */}
+                  <TouchableOpacity
+                    style={styles.aiChatEntryCard}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('AiChat', { session: session! })}
+                  >
+                    <View style={styles.aiChatEntryLeft}>
+                      <Text style={styles.aiChatEntryEmoji}>🤖</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.aiChatEntryTitle}>Ask Govio Coach</Text>
+                        <Text style={styles.aiChatEntrySub}>Diet, nutrition or meal suggestions? Chat with AI coach</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.aiChatEntryArrow}>→</Text>
+                  </TouchableOpacity>
 
                   {/* Today's Food Logs */}
-                  <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Today's Food Log</Text>
-                    {foodLogs.length === 0 ? (
+                  {foodLogs.length === 0 ? (
+                    <TouchableOpacity 
+                      style={styles.card} 
+                      activeOpacity={0.85}
+                      onPress={() => navigation.navigate('LogFood', { session: session! })}
+                    >
+                      <Text style={styles.cardTitle}>Today's Food Log</Text>
                       <View style={styles.foodLogEmpty}>
-                        <Text style={styles.foodLogEmptyText}>No food items logged today.</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <Text style={{ fontSize: 16 }}>🥗</Text>
+                          <Text style={styles.foodLogEmptyText}>No food items logged today.</Text>
+                        </View>
+                        <Text style={styles.foodLogEmptySubtext}>Tap anywhere to log food</Text>
                       </View>
-                    ) : (
-                      (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((meal) => {
-                        const mealLogs = foodLogs.filter(log => log.meal_type === meal);
-                        if (mealLogs.length === 0) return null;
-                        return (
-                          <View key={meal} style={styles.mealGroupContainer}>
-                            <Text style={styles.mealGroupHeader}>{meal.toUpperCase()}</Text>
-                            {mealLogs.map((log) => {
-                              const quantity = log.quantity_grams;
-                              const food = log.foods;
-                              const factor = quantity / 100;
-                              const itemCal = Math.round((food?.calories_per_100g || 0) * factor);
-                              return (
-                                <View key={log.id} style={styles.foodLogItemRow}>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={styles.foodLogItemName}>{food?.name}</Text>
-                                    <Text style={styles.foodLogItemDetail}>
-                                      {quantity}g • P: {(food?.protein_per_100g * factor || 0).toFixed(1)}g • C: {(food?.carbs_per_100g * factor || 0).toFixed(1)}g • F: {(food?.fat_per_100g * factor || 0).toFixed(1)}g
-                                    </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.card}>
+                      <View style={styles.cardHeaderRow}>
+                        <Text style={styles.cardTitle}>Today's Food Log</Text>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => navigation.navigate('LogFood', { session: session! })}
+                        >
+                          <Text style={styles.linkText}>+ Log Food</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {
+                        (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((meal) => {
+                          const mealLogs = foodLogs.filter(log => log.meal_type === meal);
+                          if (mealLogs.length === 0) return null;
+                          return (
+                            <View key={meal} style={styles.mealGroupContainer}>
+                              <Text style={styles.mealGroupHeader}>{meal.toUpperCase()}</Text>
+                              {mealLogs.map((log) => {
+                                const quantity = log.quantity_grams;
+                                const food = log.foods;
+                                const factor = quantity / 100;
+                                const itemCal = Math.round((food?.calories_per_100g || 0) * factor);
+                                const photoUri = getFoodPhotoUri(log);
+                                return (
+                                  <View key={log.id} style={styles.foodLogItemRow}>
+                                    {photoUri && (
+                                      <TouchableOpacity
+                                        activeOpacity={0.85}
+                                        onPress={() => setActiveFullScreenPhoto(photoUri)}
+                                        style={styles.foodLogThumbnailContainer}
+                                      >
+                                        <Image
+                                          source={{ uri: photoUri }}
+                                          style={styles.foodLogThumbnail}
+                                        />
+                                      </TouchableOpacity>
+                                    )}
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.foodLogItemName}>{food?.name}</Text>
+                                      <Text style={styles.foodLogItemDetail}>
+                                        {quantity}g • P: {(food?.protein_per_100g * factor || 0).toFixed(1)}g • C: {(food?.carbs_per_100g * factor || 0).toFixed(1)}g • F: {(food?.fat_per_100g * factor || 0).toFixed(1)}g
+                                      </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                      <Text style={styles.foodLogItemCal}>{itemCal} kcal</Text>
+                                      <TouchableOpacity 
+                                        style={styles.deleteFoodLogBtn} 
+                                        activeOpacity={0.7}
+                                        onPress={() => handleDeleteFoodLog(log.id)}
+                                      >
+                                        <Text style={styles.deleteFoodLogBtnText}>🗑</Text>
+                                      </TouchableOpacity>
+                                    </View>
                                   </View>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={styles.foodLogItemCal}>{itemCal} kcal</Text>
-                                    <TouchableOpacity 
-                                      style={styles.deleteFoodLogBtn} 
-                                      activeOpacity={0.7}
-                                      onPress={() => handleDeleteFoodLog(log.id)}
-                                    >
-                                      <Text style={styles.deleteFoodLogBtnText}>🗑</Text>
-                                    </TouchableOpacity>
-                                  </View>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
+                                );
+                              })}
+                            </View>
+                          );
+                        })
+                      }
+                    </View>
+                  )}
 
                   {/* Water Card */}
-                  <View style={styles.card}>
-                    <View style={styles.cardHeaderRow}>
-                      <Text style={styles.cardTitle}>Water Intake</Text>
-                      <Text style={styles.waterSumText}>{waterLogged} ml</Text>
-                    </View>
-                    <Text style={styles.cardDesc}>Log your daily hydration intake</Text>
-                    
-                    <TouchableOpacity style={styles.actionButton} activeOpacity={0.8} onPress={handleLogWater}>
-                      <Text style={styles.actionButtonText}>+ 250 ml</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {(() => {
+                    const waterGoal = getWaterGoal();
+                    const waterPercent = Math.min(100, Math.round((waterLogged / waterGoal) * 100));
+                    const isWaterGoalMet = waterLogged >= waterGoal;
+
+                    return (
+                      <View style={styles.card}>
+                        <View style={styles.cardHeaderRow}>
+                          <Text style={styles.cardTitle}>Water Intake</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            {isWaterGoalMet && (
+                              <Text style={{ marginRight: 6, fontSize: 16, color: '#00E676', fontWeight: '800' }}>✔</Text>
+                            )}
+                            <Text style={[styles.waterSumText, isWaterGoalMet && { color: '#00E676' }]}>
+                              {waterLogged} / {waterGoal} ml
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.cardDesc}>Log your daily hydration intake based on your weight</Text>
+
+                        {/* Dynamic Progress Bar */}
+                        <View style={styles.progressBarOuter}>
+                          <View style={[
+                            styles.progressBarInner,
+                            {
+                              width: `${waterPercent}%`,
+                              backgroundColor: isWaterGoalMet ? '#00E676' : '#06B6D4',
+                            }
+                          ]} />
+                        </View>
+                        
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+                          <Text style={{ fontSize: 11, color: isWaterGoalMet ? '#00E676' : '#7A7A7A', fontWeight: isWaterGoalMet ? '700' : '400' }}>
+                            {isWaterGoalMet ? '✔ Daily goal reached! Excellent! 💦' : `${waterPercent}% of daily goal`}
+                          </Text>
+                          {isWaterGoalMet && (
+                            <Text style={{ fontSize: 11, color: '#00E676', fontWeight: '800' }}>
+                              ✓ Met Goal
+                            </Text>
+                          )}
+                        </View>
+
+                        {/* Quick-add chips row */}
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                          <TouchableOpacity
+                            style={[styles.waterChipButton, { flex: 1 }]}
+                            activeOpacity={0.8}
+                            onPress={() => handleLogWater(100)}
+                          >
+                            <Text style={styles.waterChipButtonText}>+ 100 ML</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.actionButton, { flex: 1.5, paddingVertical: 10 }]}
+                            activeOpacity={0.8}
+                            onPress={() => handleLogWater(250)}
+                          >
+                            <Text style={styles.actionButtonText}>+ 250 ML</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.waterChipButton, { flex: 1 }]}
+                            activeOpacity={0.8}
+                            onPress={() => handleLogWater(500)}
+                          >
+                            <Text style={styles.waterChipButtonText}>+ 500 ML</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   {/* Weight Card */}
-                  <View style={styles.card}>
-                    <View style={styles.cardHeaderRow}>
-                      <Text style={styles.cardTitle}>Weight Tracker</Text>
-                      <Text style={styles.weightText}>{weight} kg</Text>
-                    </View>
-                    <Text style={styles.cardDesc}>Maintain record metrics to adapt calories</Text>
+                  {(() => {
+                    const sortedLogs = [...weightLogs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                    const hasEntries = sortedLogs.length >= 2;
+                    
+                    let trendText = '';
+                    let trendStyle = styles.weightTrendEqual;
+                    
+                    if (hasEntries) {
+                      const latest = sortedLogs[sortedLogs.length - 1].weight_kg;
+                      const prev = sortedLogs[sortedLogs.length - 2].weight_kg;
+                      const diff = latest - prev;
+                      if (diff > 0) {
+                        trendText = ` ↑${diff.toFixed(1)}kg`;
+                        trendStyle = styles.weightTrendUp;
+                      } else if (diff < 0) {
+                        trendText = ` ↓${Math.abs(diff).toFixed(1)}kg`;
+                        trendStyle = styles.weightTrendDown;
+                      } else {
+                        trendText = ` →0.0kg`;
+                        trendStyle = styles.weightTrendEqual;
+                      }
+                    }
 
-                    <TouchableOpacity 
-                      style={styles.actionButtonOutline} 
-                      activeOpacity={0.8}
-                      onPress={() => setShowWeightModal(true)}
-                    >
-                      <Text style={styles.actionButtonOutlineText}>Log Today's Weight</Text>
-                    </TouchableOpacity>
-                  </View>
+                    // Sparkline calculation
+                    const weights = sortedLogs.slice(-14).map(log => log.weight_kg);
+                    const sparklineWidth = 300;
+                    const sparklineHeight = 45;
+                    const sparklinePadding = 6;
+                    
+                    let pathD = '';
+                    let areaD = '';
+                    let points: Array<{ x: number; y: number }> = [];
+
+                    if (hasEntries) {
+                      const minWeight = Math.min(...weights);
+                      const maxWeight = Math.max(...weights);
+                      const range = maxWeight - minWeight === 0 ? 2 : maxWeight - minWeight;
+                      const adjustedMin = maxWeight - minWeight === 0 ? minWeight - 1 : minWeight;
+                      
+                      points = weights.map((w, i) => {
+                        const x = (i / (weights.length - 1)) * sparklineWidth;
+                        const y = sparklineHeight - sparklinePadding - ((w - adjustedMin) / range) * (sparklineHeight - 2 * sparklinePadding);
+                        return { x, y };
+                      });
+                      
+                      pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+                      areaD = `${pathD} L ${sparklineWidth} ${sparklineHeight} L 0 ${sparklineHeight} Z`;
+                    }
+
+                    return (
+                      <View style={[styles.card, { marginBottom: 32 }]}>
+                        <View style={styles.cardHeaderRow}>
+                          <Text style={styles.cardTitle}>Weight Tracker</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={styles.weightText}>{weight} kg</Text>
+                            {hasEntries && (
+                              <Text style={trendStyle}>{trendText}</Text>
+                            )}
+                          </View>
+                        </View>
+                        <Text style={styles.cardDesc}>Maintain record metrics to adapt calories</Text>
+
+                        {/* Compact Sparkline */}
+                        {hasEntries && (
+                          <View style={styles.sparklineContainer}>
+                            <Text style={styles.sparklineTitle}>WEIGHT TREND (LAST {weights.length} LOGS)</Text>
+                            <Svg width="100%" height={sparklineHeight} viewBox={`0 0 ${sparklineWidth} ${sparklineHeight}`}>
+                              <Defs>
+                                <LinearGradient id="weightSparkGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <Stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
+                                  <Stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+                                </LinearGradient>
+                              </Defs>
+                              <Path d={areaD} fill="url(#weightSparkGrad)" />
+                              <Path d={pathD} fill="none" stroke="#10B981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                              {points.map((p, idx) => (
+                                <Circle
+                                  key={idx}
+                                  cx={p.x}
+                                  cy={p.y}
+                                  r={idx === points.length - 1 ? 3.5 : 2}
+                                  fill={idx === points.length - 1 ? '#D4FF13' : '#10B981'}
+                                />
+                              ))}
+                            </Svg>
+                          </View>
+                        )}
+
+                        <TouchableOpacity 
+                          style={styles.actionButtonOutline} 
+                          activeOpacity={0.85}
+                          onPress={() => setShowWeightModal(true)}
+                        >
+                          <Text style={styles.actionButtonOutlineText}>Log Today's Weight</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })()}
                 </View>
               )}
             </View>
@@ -2184,8 +2968,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                       <Text style={styles.exerciseMuscleText}>{exercise.muscle_group}</Text>
                     </View>
                     <Image
-                      source={{ uri: getExerciseImageUrl(exercise.muscle_group) }}
+                      source={getExerciseImageSource(exercise)}
                       style={styles.exerciseThumbnail}
+                      resizeMode="cover"
                     />
                     <Text style={styles.arrowIcon}>→</Text>
                   </TouchableOpacity>
@@ -2349,7 +3134,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         {activeTab === 'analytics' && (
           <AnalyticsView session={session || null} />
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Floating Bottom Tab Navigator Bar */}
       <View style={styles.bottomTabBar}>
@@ -2627,6 +3412,31 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           </View>
         </View>
       </Modal>
+
+      {/* Full Screen Photo Modal */}
+      <Modal
+        visible={activeFullScreenPhoto !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setActiveFullScreenPhoto(null)}
+      >
+        <View style={styles.fullScreenPhotoOverlay}>
+          <TouchableOpacity 
+            style={styles.fullScreenPhotoCloseBtn} 
+            activeOpacity={0.8}
+            onPress={() => setActiveFullScreenPhoto(null)}
+          >
+            <Text style={styles.fullScreenPhotoCloseText}>✕ Close</Text>
+          </TouchableOpacity>
+          {activeFullScreenPhoto && (
+            <Image 
+              source={{ uri: activeFullScreenPhoto }} 
+              style={styles.fullScreenPhotoImg} 
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2635,6 +3445,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0D141D',
+  },
+  weatherBanner: {
+    backgroundColor: '#11222D',
+    borderWidth: 1.5,
+    borderColor: '#06B6D4',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  weatherBannerText: {
+    color: '#DCE3F0',
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -2653,6 +3481,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     marginTop: 8,
   },
+  headerTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
   headerSubtitle: {
     fontSize: 10,
     fontWeight: '800',
@@ -2664,6 +3496,27 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFFFFF',
     marginTop: 2,
+  },
+  dayCounterBadge: {
+    backgroundColor: '#1E2C1E',
+    borderWidth: 1,
+    borderColor: '#3D4A3D',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  dayCounterBadgeText: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  motivationalSubtext: {
+    color: '#A0A0A0',
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 4,
+    marginBottom: 8,
   },
   avatarContainer: {
     width: 46,
@@ -2981,6 +3834,20 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#06B6D4',
   },
+  waterChipButton: {
+    backgroundColor: '#11222D',
+    borderWidth: 1,
+    borderColor: '#06B6D4',
+    borderRadius: 30,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waterChipButtonText: {
+    color: '#06B6D4',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   actionButton: {
     backgroundColor: '#D4FF13',
     borderRadius: 30, // pill shape
@@ -3014,6 +3881,65 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  sparklineContainer: {
+    marginTop: 12,
+    marginBottom: 16,
+    backgroundColor: '#0D141D',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1C2530',
+  },
+  sparklineTitle: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#7A7A7A',
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  weightTrendUp: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#F97316',
+    marginLeft: 6,
+  },
+  weightTrendDown: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#10B981',
+    marginLeft: 6,
+  },
+  weightTrendEqual: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#7A7A7A',
+    marginLeft: 6,
+  },
+  tooltipBubble: {
+    position: 'absolute',
+    top: -46,
+    width: 100,
+    marginLeft: -50,
+    backgroundColor: '#1C242C',
+    borderWidth: 1,
+    borderColor: '#D4FF13',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    zIndex: 10,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  tooltipBubbleText: {
+    color: '#D4FF13',
+    fontSize: 9,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   workoutSuccessBox: {
     flexDirection: 'row',
@@ -3085,6 +4011,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: '#10B981',
+  },
+  foodLogThumbnailContainer: {
+    marginRight: 12,
+  },
+  foodLogThumbnail: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+  },
+  fullScreenPhotoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenPhotoCloseBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 30,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    zIndex: 20,
+  },
+  fullScreenPhotoCloseText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  fullScreenPhotoImg: {
+    width: '100%',
+    height: '80%',
   },
   // Bottom Tab Bar Styles
   bottomTabBar: {
@@ -3173,7 +4134,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1E1E1E',
     borderRadius: 16,
-    padding: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     marginBottom: 12,
     borderWidth: 1.5,
     borderColor: '#3D4A3D',
@@ -3211,11 +4173,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   exerciseThumbnail: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#D4FF13',
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     marginRight: 12,
   },
   emptyContainer: {
@@ -3439,11 +4399,42 @@ const styles = StyleSheet.create({
   // Food Log styling
   foodLogEmpty: {
     alignItems: 'center',
-    paddingVertical: 16,
+    justifyContent: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#0D141D',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    borderStyle: 'dashed',
+    marginTop: 8,
   },
   foodLogEmptyText: {
-    color: '#7A7A7A',
+    color: '#A0A0A0',
     fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  foodLogEmptyIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  foodLogEmptySubtext: {
+    color: '#D4FF13',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  macroProgressOuter: {
+    height: 4,
+    backgroundColor: '#0D141D',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  macroProgressInner: {
+    height: '100%',
+    borderRadius: 2,
   },
   mealGroupContainer: {
     marginTop: 12,
@@ -3722,6 +4713,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  aiChatEntryCard: {
+    backgroundColor: '#1E1E1E',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#3D4A3D',
+    padding: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  aiChatEntryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  aiChatEntryEmoji: {
+    fontSize: 26,
+    marginRight: 14,
+  },
+  aiChatEntryTitle: {
+    color: '#D4FF13',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  aiChatEntrySub: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  aiChatEntryArrow: {
+    color: '#D4FF13',
+    fontSize: 18,
+    fontWeight: '900',
   },
   draftCard: {
     backgroundColor: '#1E1E1E',

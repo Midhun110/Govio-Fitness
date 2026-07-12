@@ -13,6 +13,7 @@ export interface UserProfile {
   injuries_limitations?: string;
   dietary_preference?: 'veg' | 'non_veg' | 'vegan' | 'eggetarian';
   weekly_session_goal?: number;
+  journey_start_date?: string;
 }
 
 export interface Exercise {
@@ -45,27 +46,37 @@ export interface NutritionMetrics {
  * This is a pure function.
  */
 export function calculateNutritionMetrics(profile: UserProfile): NutritionMetrics {
-  // 1. Calculate Age
-  const dob = new Date(profile.date_of_birth);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
+  // 1. Calculate Age with fallbacks
+  let age = 30; // Default fallback age
+  if (profile.date_of_birth) {
+    const dob = new Date(profile.date_of_birth);
+    if (!isNaN(dob.getTime())) {
+      const today = new Date();
+      age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+    }
   }
   if (age < 0) age = 0;
 
+  // Fallbacks for biometrics
+  const weight = profile.weight_kg || 70;
+  const height = profile.height_cm || 175;
+  const sex = profile.sex || profile.gender || 'male';
+
   // 2. Calculate BMI
-  const height_m = profile.height_cm / 100;
-  const bmi = profile.weight_kg / (height_m * height_m);
+  const height_m = height / 100;
+  const bmi = weight / (height_m * height_m);
   const roundedBmi = Math.round(bmi * 100) / 100;
 
   // 3. Calculate BMR (Mifflin-St Jeor)
   let bmr = 0;
-  if (profile.sex === 'male') {
-    bmr = 10 * profile.weight_kg + 6.25 * profile.height_cm - 5 * age + 5;
+  if (sex === 'male') {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
   } else {
-    bmr = 10 * profile.weight_kg + 6.25 * profile.height_cm - 5 * age - 161;
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
   }
   const roundedBmr = Math.round(bmr * 10) / 10;
 
@@ -113,7 +124,7 @@ export function calculateNutritionMetrics(profile: UserProfile): NutritionMetric
   const roundedCalorieGoal = Math.round(dailyCalorieGoal);
 
   // 6. Calculate Macronutrients splits
-  const protein_g = Math.round(profile.weight_kg * 1.8);
+  const protein_g = Math.round(weight * 1.8);
   const fat_g = Math.round((roundedCalorieGoal * 0.25) / 9);
   const carbs_g = Math.round((roundedCalorieGoal - (protein_g * 4 + fat_g * 9)) / 4);
   const roundedCarbs = Math.max(0, carbs_g);

@@ -64,6 +64,7 @@ export default function ActiveWorkoutScreen() {
 
   // Active workout states
   const [activeExercises, setActiveExercises] = useState<ActiveExerciseState[]>([]);
+  const [dbWorkoutId, setDbWorkoutId] = useState<string | null>(route.params?.workoutId || null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -246,6 +247,98 @@ export default function ActiveWorkoutScreen() {
     }
   };
 
+  const saveDbDraftWorkout = async (currentExercises: ActiveExerciseState[], currentElapsed: number, currentExerciseIdx: number) => {
+    if (saving || showSummary || loading || !user || user.id === 'mock-user-id-12345') return;
+    try {
+      const todayDateIso = new Date().toISOString().split('T')[0];
+      let workoutId = dbWorkoutId;
+      
+      if (!workoutId) {
+        // Insert new draft workout
+        const { data, error } = await supabase
+          .from('workouts')
+          .insert({
+            user_id: user.id,
+            date: todayDateIso,
+            notes: workoutNotes || null,
+            status: 'in_progress',
+            elapsed_time: currentElapsed,
+            current_idx: currentExerciseIdx,
+            workout_name: localWorkoutName,
+          })
+          .select('id')
+          .single();
+          
+        if (error) {
+          console.warn('Failed to save DB draft (might need schema migration):', error);
+          return;
+        }
+        if (data) {
+          workoutId = data.id;
+          setDbWorkoutId(data.id);
+        }
+      } else {
+        // Update existing draft workout
+        const { error } = await supabase
+          .from('workouts')
+          .update({
+            elapsed_time: currentElapsed,
+            current_idx: currentExerciseIdx,
+            workout_name: localWorkoutName,
+            notes: workoutNotes || null,
+          })
+          .eq('id', workoutId);
+          
+        if (error) {
+          console.warn('Failed to update DB draft:', error);
+          return;
+        }
+      }
+      
+      if (workoutId) {
+        // Now save the sets: delete existing sets first to avoid duplicates
+        await supabase
+          .from('workout_sets')
+          .delete()
+          .eq('workout_id', workoutId);
+          
+        const setsToInsert = currentExercises.flatMap((ae) =>
+          ae.sets.map((set) => ({
+            workout_id: workoutId,
+            exercise_id: ae.exercise.id,
+            set_number: set.set_number,
+            reps: parseInt(set.reps, 10) || 0,
+            weight_kg: parseFloat(set.weight_kg) || 0,
+            notes: ae.notes || null,
+            set_type: set.set_type || 'Normal',
+          }))
+        );
+        
+        if (setsToInsert.length > 0) {
+          const { error: setsErr } = await supabase
+            .from('workout_sets')
+            .insert(setsToInsert);
+            
+          if (setsErr) {
+            const isColumnError = 
+              setsErr.message?.includes('set_type') || 
+              setsErr.hint?.includes('set_type') ||
+              setsErr.code === 'PGRST204';
+              
+            if (isColumnError) {
+              const fallbackSets = setsToInsert.map(({ set_type, ...rest }) => rest);
+              await supabase
+                .from('workout_sets')
+                .insert(fallbackSets);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error saving DB draft workout:', err);
+    }
+  };
+
   const clearDraftWorkout = async () => {
     try {
       const draftKey = 'govio_draft_workout';
@@ -274,19 +367,111 @@ export default function ActiveWorkoutScreen() {
     const init = async () => {
       if (resumeDraft) {
         try {
-          const draftKey = 'govio_draft_workout';
-          const draftStr = Platform.OS === 'web'
-            ? window.localStorage.getItem(draftKey)
-            : await SecureStore.getItemAsync(draftKey);
-          
-          if (draftStr) {
-            const draft = JSON.parse(draftStr);
-            setActiveExercises(draft.activeExercises || []);
-            setElapsedTime(draft.elapsedTime || 0);
-            setCurrentIdx(draft.currentIdx || 0);
-            setLocalWorkoutName(draft.workoutName || 'Active Session');
+          const resWorkoutId = route.params?.workoutId;
+          let loadedDraft: any = null;
+
+          if (resWorkoutId && user && user.id !== 'mock-user-id-12345') {
+            // Fetch workout session from Supabase
+            const { data: workoutData, error: workoutErr } = await supabase
+              .from('workouts')
+              .select('*')
+              .eq('id', resWorkoutId)
+              .single();
+
+            if (!workoutErr && workoutData) {
+              setDbWorkoutId(workoutData.id);
+
+              // Fetch sets for this workout
+              const { data: setsData, error: setsErr } = await supabase
+                .from('workout_sets')
+                .select('*')
+                .eq('workout_id', resWorkoutId)
+                .order('created_at', { ascending: true });
+
+              if (!setsErr && setsData) {
+                // Fetch all exercises to build a pool to match exercise details
+                const { data: allExData } = await supabase.from('exercises').select('*');
+                const customs = await getLocalCustomExercises();
+                const exercisesPool = [...(allExData || []), ...customs];
+
+                const exerciseMap: { [key: string]: { exercise: any; sets: any[]; notes: string } } = {};
+                const exerciseIdsOrder: string[] = [];
+
+                setsData.forEach((setRow: any) => {
+                  const exId = setRow.exercise_id;
+                  if (!exerciseMap[exId]) {
+                    const exDetail = exercisesPool.find(e => e.id === exId) || {
+                      id: exId,
+                      name: 'Unknown Exercise',
+                      muscle_group: 'Unknown',
+                    };
+                    exerciseMap[exId] = {
+                      exercise: exDetail,
+                      sets: [],
+                      notes: setRow.notes || '',
+                    };
+                    exerciseIdsOrder.push(exId);
+                  }
+
+                  exerciseMap[exId].sets.push({
+                    set_number: setRow.set_number,
+                    reps: setRow.reps?.toString() || '10',
+                    weight_kg: setRow.weight_kg?.toString() || '60',
+                    set_type: setRow.set_type || 'Normal',
+                    is_completed: true,
+                  });
+                });
+
+                const reconstructedExercises: ActiveExerciseState[] = exerciseIdsOrder.map((exId) => {
+                  const item = exerciseMap[exId];
+                  const lastSet = item.sets[item.sets.length - 1];
+                  return {
+                    exercise: item.exercise,
+                    sets: item.sets,
+                    inputWeight: lastSet?.weight_kg || '60',
+                    inputReps: lastSet?.reps || '10',
+                    restTimeSeconds: 90,
+                    notes: item.notes,
+                  };
+                });
+
+                loadedDraft = {
+                  activeExercises: reconstructedExercises,
+                  elapsedTime: workoutData.elapsed_time || 0,
+                  currentIdx: workoutData.current_idx || 0,
+                  workoutName: workoutData.workout_name || 'Active Session',
+                  workoutNotes: workoutData.notes || '',
+                };
+              }
+            }
+          }
+
+          // Fallback to local SecureStore if DB fetch failed or wasn't applicable
+          if (!loadedDraft) {
+            const draftKey = 'govio_draft_workout';
+            const draftStr = Platform.OS === 'web'
+              ? window.localStorage.getItem(draftKey)
+              : await SecureStore.getItemAsync(draftKey);
+
+            if (draftStr) {
+              const draft = JSON.parse(draftStr);
+              loadedDraft = {
+                activeExercises: draft.activeExercises || [],
+                elapsedTime: draft.elapsedTime || 0,
+                currentIdx: draft.currentIdx || 0,
+                workoutName: draft.workoutName || 'Active Session',
+                workoutNotes: '',
+              };
+            }
+          }
+
+          if (loadedDraft) {
+            setActiveExercises(loadedDraft.activeExercises || []);
+            setElapsedTime(loadedDraft.elapsedTime || 0);
+            setCurrentIdx(loadedDraft.currentIdx || 0);
+            setLocalWorkoutName(loadedDraft.workoutName || 'Active Session');
+            if (loadedDraft.workoutNotes) setWorkoutNotes(loadedDraft.workoutNotes);
           } else {
-            // Fallback if no draft found
             const initialStates: ActiveExerciseState[] = (initialExercises || []).map((ex) => ({
               exercise: ex,
               sets: [],
@@ -298,7 +483,6 @@ export default function ActiveWorkoutScreen() {
           }
         } catch (e) {
           console.error('Error resuming draft workout:', e);
-          // Fallback
           const initialStates: ActiveExerciseState[] = (initialExercises || []).map((ex) => ({
             exercise: ex,
             sets: [],
@@ -798,26 +982,56 @@ export default function ActiveWorkoutScreen() {
 
     // Save to real database
     try {
-      const { data: workoutData, error: workoutErr } = await supabase
-        .from('workouts')
-        .insert({
-          user_id: user.id,
-          date: todayDateIso,
-          notes: workoutNotes || null,
-        })
-        .select('id')
-        .single();
+      let workoutId = dbWorkoutId;
 
-      if (workoutErr) throw workoutErr;
-      const workoutId = workoutData.id;
+      if (workoutId) {
+        // Update existing draft workout to completed
+        const { error: workoutErr } = await supabase
+          .from('workouts')
+          .update({
+            date: todayDateIso,
+            notes: workoutNotes || null,
+            status: 'completed',
+            elapsed_time: elapsedTime,
+            current_idx: currentIdx,
+            workout_name: localWorkoutName,
+          })
+          .eq('id', workoutId);
+
+        if (workoutErr) throw workoutErr;
+      } else {
+        // Insert new completed workout
+        const { data: workoutData, error: workoutErr } = await supabase
+          .from('workouts')
+          .insert({
+            user_id: user.id,
+            date: todayDateIso,
+            notes: workoutNotes || null,
+            status: 'completed',
+            elapsed_time: elapsedTime,
+            current_idx: currentIdx,
+            workout_name: localWorkoutName,
+          })
+          .select('id')
+          .single();
+
+        if (workoutErr) throw workoutErr;
+        workoutId = workoutData.id;
+      }
+
+      // Delete existing sets for this workout first to avoid duplicates
+      await supabase
+        .from('workout_sets')
+        .delete()
+        .eq('workout_id', workoutId);
 
       const setsToInsert = activeExercises.flatMap((ae) =>
         ae.sets.map((set) => ({
           workout_id: workoutId,
           exercise_id: ae.exercise.id,
           set_number: set.set_number,
-          reps: parseInt(set.reps, 10),
-          weight_kg: parseFloat(set.weight_kg),
+          reps: parseInt(set.reps, 10) || 0,
+          weight_kg: parseFloat(set.weight_kg) || 0,
           notes: ae.notes || null,
           set_type: set.set_type || 'Normal',
         }))
@@ -927,7 +1141,7 @@ export default function ActiveWorkoutScreen() {
   const handleExitWorkout = () => {
     Alert.alert(
       'Exit Workout',
-      'Are you sure you want to exit? Your current workout progress will be lost.',
+      'Are you sure you want to exit? Your progress will be saved as an in-progress draft.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -935,8 +1149,16 @@ export default function ActiveWorkoutScreen() {
           style: 'destructive',
           onPress: async () => {
             if (stopwatchIntervalRef.current) clearInterval(stopwatchIntervalRef.current);
-            await clearDraftWorkout();
-            navigation.goBack();
+            setSaving(true);
+            try {
+              await saveDraftWorkout(activeExercises, elapsedTime, currentIdx);
+              await saveDbDraftWorkout(activeExercises, elapsedTime, currentIdx);
+            } catch (err) {
+              console.error('Error saving draft on exit:', err);
+            } finally {
+              setSaving(false);
+              navigation.goBack();
+            }
           }
         }
       ]

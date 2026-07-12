@@ -14,12 +14,15 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  Image,
 } from 'react-native';
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { MOCK_FOOD_LOGS } from './HomeScreen';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 type LogFoodScreenRouteProp = RouteProp<RootStackParamList, 'LogFood'>;
 
@@ -83,6 +86,88 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
   const [quantity, setQuantity] = useState('100');
   const [mealType, setMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('breakfast');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const handleAddPhoto = async () => {
+    Alert.alert(
+      'Add Food Photo',
+      'Choose an option to attach a photo of your food:',
+      [
+        {
+          text: 'Camera',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Denied', 'Camera access is required to take a photo.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+              await processAndSetImage(result.assets[0].uri);
+            }
+          }
+        },
+        {
+          text: 'Photo Library',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permission Denied', 'Media library access is required to pick a photo.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+              await processAndSetImage(result.assets[0].uri);
+            }
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
+  const processAndSetImage = async (uri: string) => {
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1000 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setPhotoUri(manipulated.uri);
+    } catch (e) {
+      console.error('Error compressing image:', e);
+      setPhotoUri(uri);
+    }
+  };
+
+  const uploadImage = async (uri: string): Promise<string | null> => {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      const fileExt = uri.split('.').pop() || 'jpg';
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('food-logs')
+        .upload(fileName, blob, {
+          contentType: `image/${fileExt === 'png' ? 'png' : 'jpeg'}`,
+          upsert: true,
+        });
+
+      if (error) throw error;
+      return fileName;
+    } catch (e) {
+      console.error('Error uploading image to storage:', e);
+      return null;
+    }
+  };
 
   const fetchFoods = async () => {
     if (user.id === 'mock-user-id-12345') {
@@ -127,6 +212,11 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
     setSaving(true);
     const todayTimestamp = new Date().toISOString();
 
+    let uploadedPath: string | null = null;
+    if (photoUri) {
+      uploadedPath = await uploadImage(photoUri);
+    }
+
     if (user.id === 'mock-user-id-12345') {
       // Unshift mock log
       MOCK_FOOD_LOGS.unshift({
@@ -137,6 +227,7 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
         meal_type: mealType,
         logged_at: todayTimestamp,
         foods: selectedFood,
+        photo_url: photoUri || undefined,
       });
 
       setTimeout(() => {
@@ -153,6 +244,7 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
         quantity_grams: parsedQty,
         meal_type: mealType,
         logged_at: todayTimestamp,
+        photo_url: uploadedPath,
       });
 
       if (error) throw error;
@@ -279,6 +371,30 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
                         </TouchableOpacity>
                       ))}
                     </View>
+                  </View>
+
+                  {/* Photo Attachment (Optional) */}
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Food Photo (Optional)</Text>
+                    {photoUri ? (
+                      <View style={styles.photoAttachedContainer}>
+                        <Image source={{ uri: photoUri }} style={styles.attachedImagePreview} />
+                        <TouchableOpacity 
+                          style={styles.removePhotoBtn} 
+                          onPress={() => setPhotoUri(null)}
+                        >
+                          <Text style={styles.removePhotoText}>✕ Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <TouchableOpacity 
+                        style={styles.addPhotoBtn} 
+                        onPress={handleAddPhoto}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.addPhotoBtnText}>📸 Add Photo</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
                   {/* Log Action Button */}
@@ -584,5 +700,45 @@ const styles = StyleSheet.create({
     color: '#D4FF13',
     fontSize: 13,
     fontWeight: '700',
+  },
+  photoAttachedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#121212',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#222222',
+    padding: 10,
+  },
+  attachedImagePreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    marginRight: 16,
+  },
+  removePhotoBtn: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  removePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  addPhotoBtn: {
+    backgroundColor: '#121212',
+    borderWidth: 1.5,
+    borderColor: '#222222',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoBtnText: {
+    color: '#D4FF13',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
