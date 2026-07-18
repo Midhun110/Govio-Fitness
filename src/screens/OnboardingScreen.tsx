@@ -15,7 +15,7 @@ import { RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
-import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../utils/calculations';
+import { calculateNutritionMetrics, NutritionMetrics, UserProfile, classifyUserProfile } from '../utils/calculations';
 import { setPendingOnboarding } from '../utils/pendingOnboarding';
 
 type OnboardingScreenRouteProp = RouteProp<RootStackParamList, 'Onboarding'>;
@@ -28,7 +28,7 @@ type SexType = 'male' | 'female';
 type HeightUnitType = 'cm' | 'ft-in';
 type WeightUnitType = 'kg' | 'lb';
 type ActivityLevelType = 'sedentary' | 'light' | 'moderate' | 'active';
-type FitnessGoalType = 'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance';
+type FitnessGoalType = 'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance' | 'strength';
 type WorkoutFrequencyType = '0-1' | '2-3' | '4-5' | '6+';
 type EnvironmentType = 'gym' | 'home' | 'outdoor' | 'calisthenics';
 type DietaryType = 'veg' | 'non_veg' | 'vegan' | 'eggetarian';
@@ -37,7 +37,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
   const session = route.params?.session;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
-  const [step, setStep] = useState(1); // Steps 1 to 13
+  const [step, setStep] = useState(1); // Steps 1 to 14
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,27 +63,25 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
   const [workoutFrequency, setWorkoutFrequency] = useState<WorkoutFrequencyType | null>(null);
   const [experienceLevel, setExperienceLevel] = useState<'beginner' | 'intermediate' | 'advanced' | null>(null);
   const [preferredEnvironment, setPreferredEnvironment] = useState<EnvironmentType | null>(null);
+  const [homeEquipmentLevel, setHomeEquipmentLevel] = useState<'none' | 'some' | 'full' | null>(null);
   const [injuriesLimitations, setInjuriesLimitations] = useState('');
   const [dietaryPreference, setDietaryPreference] = useState<DietaryType | null>(null);
 
   // Get current progress labels and percentage
   const getProgressInfo = (currentStep: number) => {
-    switch (currentStep) {
-      case 1: return { label: 'Step 1 of 13', percent: 8 };
-      case 2: return { label: 'Step 2 of 13', percent: 15 };
-      case 3: return { label: 'Step 3 of 13', percent: 23 };
-      case 4: return { label: 'Step 4 of 13', percent: 31 };
-      case 5: return { label: 'Step 5 of 13', percent: 38 };
-      case 6: return { label: 'Step 6 of 13', percent: 46 };
-      case 7: return { label: 'Step 7 of 13', percent: 54 };
-      case 8: return { label: 'Step 8 of 13', percent: 62 };
-      case 9: return { label: 'Step 9 of 13', percent: 69 };
-      case 10: return { label: 'Step 10 of 13', percent: 77 };
-      case 11: return { label: 'Step 11 of 13', percent: 85 };
-      case 12: return { label: 'Step 12 of 13', percent: 92 };
-      case 13: return { label: 'Step 13 of 13', percent: 100 };
-      default: return { label: '', percent: 0 };
+    const isHome = preferredEnvironment === 'home';
+    const totalSteps = isHome ? 14 : 13;
+    
+    let displayStep = currentStep;
+    if (!isHome && currentStep > 11) {
+      displayStep = currentStep - 1;
     }
+    
+    const percent = Math.round((displayStep / totalSteps) * 100);
+    return {
+      label: `Step ${displayStep} of ${totalSteps}`,
+      percent: percent,
+    };
   };
 
   // Convert inputs to standardized database values
@@ -228,26 +226,36 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
         setError('Please select your preferred environment.');
         return;
       }
-      setStep(11);
+      setStep(preferredEnvironment === 'home' ? 11 : 12);
     } else if (step === 11) {
+      if (!homeEquipmentLevel) {
+        setError('Please select your home equipment level.');
+        return;
+      }
+      setStep(12);
+    } else if (step === 12) {
       // Injuries - Optional: default to "None" if empty
       if (!injuriesLimitations.trim()) {
         setInjuriesLimitations('None');
       }
-      setStep(12);
-    } else if (step === 12) {
+      setStep(13);
+    } else if (step === 13) {
       if (!dietaryPreference) {
         setError('Please select your dietary preference.');
         return;
       }
-      setStep(13);
+      setStep(14);
     }
   };
 
   const handleBack = () => {
     setError(null);
     if (step > 1) {
-      setStep(step - 1);
+      if (step === 12 && preferredEnvironment !== 'home') {
+        setStep(10);
+      } else {
+        setStep(step - 1);
+      }
     }
   };
 
@@ -275,13 +283,16 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
       experience_level: experienceLevel!,
       workout_frequency: workoutFrequency!,
       preferred_workout_environment: preferredEnvironment!,
+      training_environment: preferredEnvironment!,
+      home_equipment_level: preferredEnvironment === 'home' ? homeEquipmentLevel! : undefined,
       injuries_limitations: injuriesLimitations.trim() || 'None',
       dietary_preference: dietaryPreference!,
     };
 
     // Pre-auth Questionnaire Submission
     if (!session) {
-      setPendingOnboarding(profileData);
+      const classifications = classifyUserProfile(profileData);
+      setPendingOnboarding({ ...profileData, ...classifications });
       navigation.navigate('Login');
       return;
     }
@@ -305,11 +316,27 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
         experience_level: profileData.experience_level,
         workout_frequency: profileData.workout_frequency,
         preferred_workout_environment: profileData.preferred_workout_environment,
+        training_environment: profileData.training_environment,
+        home_equipment_level: profileData.home_equipment_level,
         injuries_limitations: profileData.injuries_limitations,
         dietary_preference: profileData.dietary_preference
       });
 
       if (insertProfileError) throw insertProfileError;
+
+      // Isolated update for classifications (robust to unmigrated schemas)
+      try {
+        const classifications = classifyUserProfile(profileData);
+        await supabase.from('user_profiles').update({
+          classified_age_group: classifications.classified_age_group,
+          classified_experience: classifications.classified_experience,
+          classified_location: classifications.classified_location,
+          classified_equipment: classifications.classified_equipment,
+          classified_goal: classifications.classified_goal
+        }).eq('id', session.user.id);
+      } catch (classErr) {
+        console.warn('Failed to update user classifications in database:', classErr);
+      }
 
       const { error: insertMetricsError } = await supabase.from('user_metrics').upsert({
         id: session.user.id,
@@ -633,6 +660,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
               {[
                 { key: 'lose', title: 'Lose fat', desc: 'Create a deficit to reduce body fat percentage' },
                 { key: 'gain', title: 'Build muscle', desc: 'Slight surplus to support muscle mass development' },
+                { key: 'strength', title: 'Increase strength', desc: 'Focus on lifting heavier weights and building raw strength' },
                 { key: 'maintain', title: 'Maintain weight', desc: 'Balance energy intake to hold current weight' },
                 { key: 'endurance', title: 'Improve endurance', desc: 'Focus on sustained energy and stamina' },
               ].map((item) => (
@@ -791,7 +819,40 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 11: // Injuries or Limitations Screen
+      case 11: // Home Equipment Screen
+        return (
+          <View style={styles.stepContainer}>
+            <Text style={styles.questionText}>What equipment do you have at home?</Text>
+            <Text style={styles.subtext}>This helps tailor your home workout options.</Text>
+
+            <TouchableOpacity
+              style={[styles.optionCard, homeEquipmentLevel === 'none' && styles.activeOptionCard]}
+              onPress={() => setHomeEquipmentLevel('none')}
+            >
+              <Text style={[styles.optionTitle, homeEquipmentLevel === 'none' && styles.activeOptionTitle]}>
+                No equipment (bodyweight only)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, homeEquipmentLevel === 'some' && styles.activeOptionCard]}
+              onPress={() => setHomeEquipmentLevel('some')}
+            >
+              <Text style={[styles.optionTitle, homeEquipmentLevel === 'some' && styles.activeOptionTitle]}>
+                Some equipment (dumbbells/resistance bands)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.optionCard, homeEquipmentLevel === 'full' && styles.activeOptionCard]}
+              onPress={() => setHomeEquipmentLevel('full')}
+            >
+              <Text style={[styles.optionTitle, homeEquipmentLevel === 'full' && styles.activeOptionTitle]}>
+                Full home gym setup
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 12: // Injuries or Limitations Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>Any physical injuries or limitations?</Text>
@@ -811,7 +872,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
               style={styles.skipTextContainer}
               onPress={() => {
                 setInjuriesLimitations('None');
-                setStep(12);
+                setStep(13);
               }}
             >
               <Text style={styles.skipText}>No Injuries / Skip</Text>
@@ -819,7 +880,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 12: // Dietary Preference Screen
+      case 13: // Dietary Preference Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>What is your dietary preference?</Text>
@@ -852,7 +913,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
           </View>
         );
 
-      case 13: // Confirmation Screen
+      case 14: // Confirmation Screen
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.questionText}>Verify your information</Text>
@@ -966,12 +1027,28 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
                   </TouchableOpacity>
                 </View>
 
+                {preferredEnvironment === 'home' && (
+                  <View style={styles.summaryItem}>
+                    <View style={styles.summaryLabelCol}>
+                      <Text style={styles.summaryLabel}>Home Equipment</Text>
+                      <Text style={styles.summaryValue}>
+                        {homeEquipmentLevel === 'none' ? 'No equipment (bodyweight only)' :
+                         homeEquipmentLevel === 'some' ? 'Some equipment (dumbbells/resistance bands)' :
+                         homeEquipmentLevel === 'full' ? 'Full home gym setup' : ''}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setStep(11)}>
+                      <Text style={styles.editText}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 <View style={styles.summaryItem}>
                   <View style={styles.summaryLabelCol}>
                     <Text style={styles.summaryLabel}>Injuries / Limitations</Text>
                     <Text style={styles.summaryValue}>{injuriesLimitations || 'None'}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setStep(11)}>
+                  <TouchableOpacity onPress={() => setStep(12)}>
                     <Text style={styles.editText}>Edit</Text>
                   </TouchableOpacity>
                 </View>
@@ -981,7 +1058,7 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
                     <Text style={styles.summaryLabel}>Dietary Preference</Text>
                     <Text style={styles.summaryValue}>{getDietDisplayLabel()}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setStep(12)}>
+                  <TouchableOpacity onPress={() => setStep(13)}>
                     <Text style={styles.editText}>Edit</Text>
                   </TouchableOpacity>
                 </View>
@@ -1037,14 +1114,14 @@ export default function OnboardingScreen({ route }: OnboardingScreenProps) {
 
               <TouchableOpacity
                 style={[styles.nextButton, loading && styles.disabledButton]}
-                onPress={step === 13 ? handleSubmit : handleNext}
+                onPress={step === 14 ? handleSubmit : handleNext}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#000000" />
                 ) : (
                   <Text style={styles.nextButtonText}>
-                    {step === 13 ? 'Confirm & Finish' : 'Continue'}
+                    {step === 14 ? 'Confirm & Finish' : 'Continue'}
                   </Text>
                 )}
               </TouchableOpacity>

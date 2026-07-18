@@ -7,6 +7,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './src/lib/supabase';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import HomeRouterScreen from './src/screens/HomeRouterScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
 import LogWorkoutScreen from './src/screens/LogWorkoutScreen';
@@ -19,7 +20,8 @@ import ExerciseDetailScreen from './src/screens/ExerciseDetailScreen';
 import StartWorkoutScreen from './src/screens/StartWorkoutScreen';
 import ActiveWorkoutScreen from './src/screens/ActiveWorkoutScreen';
 import AiChatScreen from './src/screens/AiChatScreen';
-import { NutritionMetrics, calculateNutritionMetrics } from './src/utils/calculations';
+import { NutritionMetrics, calculateNutritionMetrics, classifyUserProfile } from './src/utils/calculations';
+import * as SecureStore from 'expo-secure-store';
 import { getPendingOnboarding, setPendingOnboarding } from './src/utils/pendingOnboarding';
 
 // Inject mobile-frame CSS immediately at module load (before first render).
@@ -84,11 +86,13 @@ export type RootStackParamList = {
     calories: string;
     description: string;
     exercisesList: any[];
+    profile?: any;
   };
   MuscleDetail: { session: Session; muscleGroup: string };
   ExerciseDetail: { session: Session; exerciseId: string; name: string; muscleGroup: string };
   StartWorkout: { session: Session; initialMuscleGroup?: string };
-  ActiveWorkout: { session: Session; exercises?: any[]; workoutName?: string; resumeDraft?: boolean; workoutId?: string };
+  ActiveWorkout: { session: Session; exercises?: any[]; workoutName?: string; resumeDraft?: boolean; workoutId?: string; programDay?: number };
+
   AiChat: { session: Session };
 };
 
@@ -204,6 +208,15 @@ export default function App() {
             // Bypass database writes for mock user in development
             if (newSession.user.id === 'mock-user-id-12345') {
               await new Promise((resolve) => setTimeout(resolve, 800)); // simulate latency
+              
+              const classifications = classifyUserProfile(pendingData);
+              const mockProfileData = { ...pendingData, ...classifications };
+              if (Platform.OS === 'web') {
+                window.localStorage.setItem('govio_pending_onboarding', JSON.stringify(mockProfileData));
+              } else {
+                await SecureStore.setItemAsync('govio_pending_onboarding', JSON.stringify(mockProfileData));
+              }
+              
               setPendingOnboarding(null);
               setMetrics(calculatedMetrics);
               setHasProfile(true);
@@ -226,11 +239,27 @@ export default function App() {
               experience_level: pendingData.experience_level,
               workout_frequency: pendingData.workout_frequency,
               preferred_workout_environment: pendingData.preferred_workout_environment,
+              training_environment: pendingData.training_environment,
+              home_equipment_level: pendingData.home_equipment_level,
               injuries_limitations: pendingData.injuries_limitations,
               dietary_preference: pendingData.dietary_preference
             });
 
             if (insertProfileError) throw insertProfileError;
+
+            // Isolated update for classifications (robust to unmigrated schemas)
+            try {
+              const classifications = classifyUserProfile(pendingData);
+              await supabase.from('user_profiles').update({
+                classified_age_group: classifications.classified_age_group,
+                classified_experience: classifications.classified_experience,
+                classified_location: classifications.classified_location,
+                classified_equipment: classifications.classified_equipment,
+                classified_goal: classifications.classified_goal
+              }).eq('id', newSession.user.id);
+            } catch (classErr) {
+              console.warn('Failed to update classifications in database during signup:', classErr);
+            }
 
             // 3. Write user metrics
             const { error: insertMetricsError } = await supabase.from('user_metrics').upsert({
@@ -309,7 +338,7 @@ export default function App() {
                 <>
                   <Stack.Screen 
                     name="Home" 
-                    component={HomeScreen} 
+                    component={HomeRouterScreen} 
                     initialParams={{ session }}
                   />
                   <Stack.Screen 

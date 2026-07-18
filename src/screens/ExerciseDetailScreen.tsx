@@ -75,8 +75,8 @@ export default function ExerciseDetailScreen() {
         setIsPlaying(true);
       }
     } else {
-      if (nativePlayer) {
-        nativePlayer.seekTo(0);
+      if (nativePlayer && resolvedVideoUri) {
+        nativePlayer.currentTime = 0;
         nativePlayer.play();
         setIsPlaying(true);
       }
@@ -96,29 +96,22 @@ export default function ExerciseDetailScreen() {
   };
 
   const videoAsset = exercise ? getExerciseVideoSource(exercise) : null;
-  const resolvedVideoUri = videoAsset 
-    ? (typeof videoAsset === 'number' ? Image.resolveAssetSource(videoAsset)?.uri : videoAsset) 
+  const resolvedVideoUri = videoAsset
+    ? (typeof videoAsset === 'number' ? Image.resolveAssetSource(videoAsset)?.uri : videoAsset)
     : null;
 
-  let nativePlayer: any = null;
-  if (Platform.OS !== 'web' && resolvedVideoUri) {
-    try {
-      nativePlayer = useVideoPlayer(resolvedVideoUri, (player) => {
-        player.loop = true;
-        player.muted = isMuted;
-        if (isPlaying) {
-          player.play();
-        } else {
-          player.pause();
-        }
-      });
-    } catch (e) {
-      console.warn("Failed to initialize expo-video player on native:", e);
+  const nativePlayer = useVideoPlayer(resolvedVideoUri, (player) => {
+    player.loop = true;
+    player.muted = isMuted;
+    if (isPlaying) {
+      player.play();
+    } else {
+      player.pause();
     }
-  }
+  });
 
   useEffect(() => {
-    if (Platform.OS !== 'web' && nativePlayer) {
+    if (Platform.OS !== 'web' && nativePlayer && resolvedVideoUri) {
       nativePlayer.muted = isMuted;
       if (isPlaying) {
         nativePlayer.play();
@@ -126,7 +119,7 @@ export default function ExerciseDetailScreen() {
         nativePlayer.pause();
       }
     }
-  }, [isPlaying, isMuted, nativePlayer]);
+  }, [isPlaying, isMuted, nativePlayer, resolvedVideoUri]);
 
   const renderControlsOverlay = () => {
     if (!videoAsset) return null;
@@ -135,15 +128,15 @@ export default function ExerciseDetailScreen() {
         <TouchableOpacity onPress={handlePlayPause} style={styles.controlButton}>
           <Text style={styles.controlText}>{isPlaying ? '⏸' : '▶'}</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity onPress={handleReplay} style={styles.controlButton}>
           <Text style={styles.controlText}>🔄</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity onPress={handleMuteUnmute} style={styles.controlButton}>
           <Text style={styles.controlText}>{isMuted ? '🔇' : '🔊'}</Text>
         </TouchableOpacity>
-        
+
         {Platform.OS === 'web' && (
           <TouchableOpacity onPress={handleFullscreen} style={styles.controlButton}>
             <Text style={styles.controlText}>⛶</Text>
@@ -192,7 +185,7 @@ export default function ExerciseDetailScreen() {
 
     return (
       <View style={styles.videoContainer}>
-        {nativePlayer && (
+        {nativePlayer && resolvedVideoUri && (
           <VideoView
             style={{ width: '100%', height: '100%' }}
             player={nativePlayer}
@@ -239,7 +232,7 @@ export default function ExerciseDetailScreen() {
     if (muscle === 'shoulders') {
       return 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600';
     }
-    if (muscle === 'legs' || muscle === 'glutes' || muscle === 'calves') {
+    if (muscle === 'legs') {
       return 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600';
     }
     if (muscle === 'core' || muscle === 'abs') {
@@ -299,8 +292,8 @@ export default function ExerciseDetailScreen() {
       'Are you sure you want to delete this custom exercise? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
+        {
+          text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -311,7 +304,7 @@ export default function ExerciseDetailScreen() {
                   .from('exercises')
                   .delete()
                   .eq('id', exerciseId);
-                
+
                 if (error) throw error;
               }
               Alert.alert('Success', 'Exercise deleted successfully.');
@@ -342,12 +335,12 @@ export default function ExerciseDetailScreen() {
         .split(',')
         .map(s => s.trim())
         .filter(s => s.length > 0);
-      
+
       const parsedInstructions = instructions
         .split('\n')
         .map(s => s.trim())
         .filter(s => s.length > 0);
-      
+
       const parsedTips = formTips
         .split('\n')
         .map(s => s.trim())
@@ -374,7 +367,7 @@ export default function ExerciseDetailScreen() {
           .eq('id', exerciseId)
           .select()
           .single();
-        
+
         if (error) throw error;
         if (data) {
           setExercise(data);
@@ -401,11 +394,11 @@ export default function ExerciseDetailScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={[styles.innerContainer, scaleStyle]}>
-        
+
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             activeOpacity={0.7}
             onPress={() => navigation.goBack()}
           >
@@ -424,108 +417,108 @@ export default function ExerciseDetailScreen() {
           </View>
         ) : (
           <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], flex: 1 }}>
-            <ScrollView 
+            <ScrollView
               contentContainerStyle={styles.scrollContainer}
               showsVerticalScrollIndicator={false}
             >
-            {/* Exercise Video/Image */}
-            <View style={styles.imageCard}>
-              {renderVideoSection()}
-              <View style={styles.imageOverlay} pointerEvents="none" />
-              <View style={styles.titleInfo} pointerEvents="none">
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <View style={styles.musclesRow}>
-                  <View style={styles.muscleBadge}>
-                    <Text style={styles.muscleBadgeText}>PRIMARY: {exercise.primary_muscle || exercise.muscle_group}</Text>
+              {/* Exercise Video/Image */}
+              <View style={styles.imageCard}>
+                {renderVideoSection()}
+                <View style={styles.imageOverlay} pointerEvents="none" />
+                <View style={styles.titleInfo} pointerEvents="none">
+                  <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  <View style={styles.musclesRow}>
+                    <View style={styles.muscleBadge}>
+                      <Text style={styles.muscleBadgeText}>PRIMARY: {exercise.primary_muscle || exercise.muscle_group}</Text>
+                    </View>
                   </View>
                 </View>
+                {renderControlsOverlay()}
               </View>
-              {renderControlsOverlay()}
-            </View>
 
-            {/* Secondary Muscles */}
-            {exercise.secondary_muscles && exercise.secondary_muscles.length > 0 && (
-              <View style={styles.metaSection}>
-                <Text style={styles.sectionLabel}>SECONDARY TARGETS</Text>
-                <View style={styles.secondaryMusclesContainer}>
-                  {exercise.secondary_muscles.map((muscle, idx) => (
-                    <View key={idx} style={styles.secondaryBadge}>
-                      <Text style={styles.secondaryBadgeText}>{muscle}</Text>
+              {/* Secondary Muscles */}
+              {exercise.secondary_muscles && exercise.secondary_muscles.length > 0 && (
+                <View style={styles.metaSection}>
+                  <Text style={styles.sectionLabel}>SECONDARY TARGETS</Text>
+                  <View style={styles.secondaryMusclesContainer}>
+                    {exercise.secondary_muscles.map((muscle, idx) => (
+                      <View key={idx} style={styles.secondaryBadge}>
+                        <Text style={styles.secondaryBadgeText}>{muscle}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Instructions */}
+              {exercise.instructions && exercise.instructions.length > 0 && (
+                <View style={styles.guideSection}>
+                  <Text style={styles.sectionLabel}>HOW TO PERFORM</Text>
+                  {exercise.instructions.map((step, idx) => (
+                    <View key={idx} style={styles.stepItem}>
+                      <View style={styles.stepNumberContainer}>
+                        <Text style={styles.stepNumberText}>{idx + 1}</Text>
+                      </View>
+                      <Text style={styles.stepText}>{step}</Text>
                     </View>
                   ))}
                 </View>
-              </View>
-            )}
+              )}
 
-            {/* Instructions */}
-            {exercise.instructions && exercise.instructions.length > 0 && (
-              <View style={styles.guideSection}>
-                <Text style={styles.sectionLabel}>HOW TO PERFORM</Text>
-                {exercise.instructions.map((step, idx) => (
-                  <View key={idx} style={styles.stepItem}>
-                    <View style={styles.stepNumberContainer}>
-                      <Text style={styles.stepNumberText}>{idx + 1}</Text>
+              {/* Form Tips (Success green theme) */}
+              {exercise.form_tips && exercise.form_tips.length > 0 && (
+                <View style={styles.tipsSection}>
+                  <Text style={[styles.sectionLabel, { color: '#10B981' }]}>PRO FORM TIPS</Text>
+                  {exercise.form_tips.map((tip, idx) => (
+                    <View key={idx} style={styles.tipItem}>
+                      <Text style={styles.tipCheck}>✓</Text>
+                      <Text style={styles.tipText}>{tip}</Text>
                     </View>
-                    <Text style={styles.stepText}>{step}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              )}
 
-            {/* Form Tips (Success green theme) */}
-            {exercise.form_tips && exercise.form_tips.length > 0 && (
-              <View style={styles.tipsSection}>
-                <Text style={[styles.sectionLabel, { color: '#10B981' }]}>PRO FORM TIPS</Text>
-                {exercise.form_tips.map((tip, idx) => (
-                  <View key={idx} style={styles.tipItem}>
-                    <Text style={styles.tipCheck}>✓</Text>
-                    <Text style={styles.tipText}>{tip}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              {/* Common Mistakes (Warning red theme) */}
+              {exercise.common_mistakes && exercise.common_mistakes.length > 0 && (
+                <View style={styles.mistakesSection}>
+                  <Text style={[styles.sectionLabel, { color: '#EF4444' }]}>COMMON MISTAKES TO AVOID</Text>
+                  {exercise.common_mistakes.map((mistake, idx) => (
+                    <View key={idx} style={styles.mistakeItem}>
+                      <Text style={styles.mistakeCross}>✗</Text>
+                      <Text style={styles.mistakeText}>{mistake}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-            {/* Common Mistakes (Warning red theme) */}
-            {exercise.common_mistakes && exercise.common_mistakes.length > 0 && (
-              <View style={styles.mistakesSection}>
-                <Text style={[styles.sectionLabel, { color: '#EF4444' }]}>COMMON MISTAKES TO AVOID</Text>
-                {exercise.common_mistakes.map((mistake, idx) => (
-                  <View key={idx} style={styles.mistakeItem}>
-                    <Text style={styles.mistakeCross}>✗</Text>
-                    <Text style={styles.mistakeText}>{mistake}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              {exercise.is_custom && (
+                <View style={styles.customActionsRow}>
+                  <TouchableOpacity
+                    style={styles.editBtn}
+                    onPress={() => {
+                      setExName(exercise.name);
+                      setPrimaryTarget(exercise.primary_muscle || '');
+                      setSecondaryTargets((exercise.secondary_muscles || []).join(', '));
+                      setInstructions((exercise.instructions || []).join('\n'));
+                      setFormTips((exercise.form_tips || []).join('\n'));
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.editBtnText}>EDIT GUIDE</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={handleDeleteExercise}
+                  >
+                    <Text style={styles.deleteBtnText}>DELETE</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            {exercise.is_custom && (
-              <View style={styles.customActionsRow}>
-                <TouchableOpacity 
-                  style={styles.editBtn} 
-                  onPress={() => {
-                    setExName(exercise.name);
-                    setPrimaryTarget(exercise.primary_muscle || '');
-                    setSecondaryTargets((exercise.secondary_muscles || []).join(', '));
-                    setInstructions((exercise.instructions || []).join('\n'));
-                    setFormTips((exercise.form_tips || []).join('\n'));
-                    setModalVisible(true);
-                  }}
-                >
-                  <Text style={styles.editBtnText}>EDIT GUIDE</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.deleteBtn} 
-                  onPress={handleDeleteExercise}
-                >
-                  <Text style={styles.deleteBtnText}>DELETE</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-          </ScrollView>
-        </Animated.View>
-      )}
-    </View>
+            </ScrollView>
+          </Animated.View>
+        )}
+      </View>
 
       {/* Edit Exercise Modal */}
       <Modal
@@ -542,8 +535,8 @@ export default function ExerciseDetailScreen() {
             <View style={styles.modalContent}>
               {/* Modal Header */}
               <View style={styles.modalHeader}>
-                <TouchableOpacity 
-                  style={styles.modalCancelBtn} 
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
                   onPress={() => setModalVisible(false)}
                 >
                   <Text style={styles.modalCancelBtnText}>CANCEL</Text>
@@ -552,7 +545,7 @@ export default function ExerciseDetailScreen() {
                 <View style={{ width: 60 }} />
               </View>
 
-              <ScrollView 
+              <ScrollView
                 contentContainerStyle={styles.modalFormScroll}
                 showsVerticalScrollIndicator={false}
               >

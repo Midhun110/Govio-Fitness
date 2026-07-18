@@ -11,12 +11,14 @@ export interface Exercise {
   user_id?: string;
   is_custom?: boolean;
   muscleFocusNote?: string;
+  equipment_required?: 'gym_machine' | 'barbell' | 'dumbbell' | 'bodyweight' | 'resistance_band';
 }
 
 export const MOCK_EXERCISES: Exercise[] = [
   {
     "id": "ex-1",
     "name": "Bench Press",
+    "equipment_required": "barbell",
     "muscle_group": "Chest",
     "primary_muscle": "Pectoralis Major",
     "secondary_muscles": [
@@ -24,252 +26,283 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Anterior Deltoids"
     ],
     "instructions": [
-      "Lie flat on the bench with your feet flat on the floor.",
-      "Grip the barbell slightly wider than shoulder-width.",
-      "Unrack the bar and lower it slowly to your mid-chest.",
-      "Push the bar back up powerfully while keeping your elbows tucked at a 45-degree angle."
+      "Lie on flat bench. Grip barbell slightly wider than shoulder-width.",
+      "Lower bar to chest.",
+      "Press bar back up."
     ],
     "form_tips": [
-      "Keep your shoulder blades retracted and depressed throughout the lift.",
-      "Drive your feet into the floor to stay tight and stable.",
-      "Avoid bouncing the bar off your chest."
+      "Keep feet flat on floor.",
+      "Keep elbows at 45 degree angle."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/chest_bench_press.png')
+    "common_mistakes": [
+      "Bouncing bar off chest."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
   },
   {
-    "id": "ex-2",
-    "name": "Barbell Squat",
-    "muscle_group": "Legs",
-    "primary_muscle": "Quadriceps",
+    "id": "ex-16",
+    "name": "Incline Dumbbell Press",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major (Upper)",
     "secondary_muscles": [
-      "Glutes",
-      "Hamstrings"
+      "Anterior Deltoids",
+      "Triceps"
     ],
     "instructions": [
-      "Position the bar on your upper back and stand with feet shoulder-width apart.",
-      "Brace your core and bend your knees and hips to lower down.",
-      "Descend until your thighs are at least parallel to the floor.",
-      "Drive through your heels to return to standing."
+      "Lie on incline bench at 30-45 degrees.",
+      "Press dumbbells up from chest level.",
+      "Lower under control."
     ],
     "form_tips": [
-      "Keep your chest up and back flat throughout the movement.",
-      "Track your knees in line with your toes.",
-      "Avoid letting your heels lift off the floor."
+      "Maintain solid arch in lower back.",
+      "Keep wrists stacked directly over elbows."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/legs_barbell_squat.png')
+    "common_mistakes": [
+      "Pressing at too steep an angle."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
   },
   {
-    "id": "ex-3",
-    "name": "Deadlift",
-    "muscle_group": "Back",
-    "primary_muscle": "Erector Spinae",
-    "secondary_muscles": [
-      "Glutes",
-      "Hamstrings",
-      "Traps"
-    ],
-    "instructions": [
-      "Stand with feet hip-width apart, bar over mid-foot.",
-      "Hinge at the hips and grip the bar just outside your knees.",
-      "Keep your back flat and chest up as you drive through your heels to stand.",
-      "Lower the bar back down with control by hinging at the hips first."
-    ],
-    "form_tips": [
-      "Keep the bar close to your shins and thighs throughout the lift.",
-      "Brace your core hard before initiating the pull.",
-      "Avoid rounding your lower back."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/back_deadlift.png')
-  },
-  {
-    "id": "ex-4",
-    "name": "Overhead Press",
-    "muscle_group": "Shoulders",
-    "primary_muscle": "Anterior Deltoids",
-    "secondary_muscles": [
-      "Triceps",
-      "Upper Chest"
-    ],
-    "instructions": [
-      "Stand with feet shoulder-width apart, bar racked at shoulder height.",
-      "Brace your core and press the bar straight overhead.",
-      "Fully lock out your arms at the top.",
-      "Lower the bar back down to shoulder level with control."
-    ],
-    "form_tips": [
-      "Avoid arching your lower back excessively.",
-      "Keep your glutes and core tight throughout the press.",
-      "Move your head slightly back as the bar passes your face."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/shoulders_overhead_press.png')
-  },
-  {
-    "id": "ex-5",
-    "name": "Pull-Up",
-    "muscle_group": "Back",
-    "primary_muscle": "Latissimus Dorsi",
-    "secondary_muscles": [
-      "Biceps",
-      "Rear Deltoids"
-    ],
-    "instructions": [
-      "Hang from a bar with an overhand grip, slightly wider than shoulders.",
-      "Pull your body up until your chin clears the bar.",
-      "Focus on driving your elbows down and back.",
-      "Lower yourself back down with control to a full hang."
-    ],
-    "form_tips": [
-      "Avoid excessive swinging or kipping.",
-      "Initiate the pull by depressing your shoulder blades first.",
-      "Fully extend your arms at the bottom of each rep."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/back_pullup.png')
-  },
-  {
-    "id": "ex-6",
-    "name": "Bent-Over Barbell Row",
-    "muscle_group": "Back",
-    "primary_muscle": "Latissimus Dorsi",
-    "secondary_muscles": [
-      "Rhomboids",
-      "Biceps",
-      "Rear Deltoids"
-    ],
-    "instructions": [
-      "Hinge at the hips with a flat back, holding the bar with an overhand grip.",
-      "Let the bar hang at arm's length below your shoulders.",
-      "Pull the bar toward your lower ribcage, squeezing your shoulder blades.",
-      "Lower the bar back down with control."
-    ],
-    "form_tips": [
-      "Keep your torso angle fixed throughout the set.",
-      "Avoid using momentum or jerking the weight up.",
-      "Keep your neck neutral, not looking up."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/back_bent_over_row.png')
-  },
-  {
-    "id": "ex-7",
-    "name": "Walking Lunge",
-    "muscle_group": "Legs",
-    "primary_muscle": "Quadriceps",
-    "secondary_muscles": [
-      "Glutes",
-      "Hamstrings"
-    ],
-    "instructions": [
-      "Stand tall holding dumbbells at your sides.",
-      "Step forward with one leg and lower your hips until both knees are bent 90 degrees.",
-      "Push through your front heel to step forward into the next lunge.",
-      "Continue alternating legs as you move forward."
-    ],
-    "form_tips": [
-      "Keep your torso upright throughout each step.",
-      "Avoid letting your front knee travel past your toes.",
-      "Take controlled, deliberate steps rather than rushing."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/legs_walking_lunge.png')
-  },
-  {
-    "id": "ex-8",
-    "name": "Plank",
-    "muscle_group": "Abs",
-    "primary_muscle": "Rectus Abdominis",
-    "secondary_muscles": [
-      "Obliques",
-      "Lower Back"
-    ],
-    "instructions": [
-      "Get into a forearm plank position with elbows under your shoulders.",
-      "Keep your body in a straight line from head to heels.",
-      "Brace your core and hold the position.",
-      "Breathe steadily while maintaining the hold."
-    ],
-    "form_tips": [
-      "Avoid letting your hips sag or pike up.",
-      "Squeeze your glutes to help stabilize your lower back.",
-      "Keep your neck neutral, looking at the floor."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_plank.png')
-  },
-  {
-    "id": "ex-9",
-    "name": "Barbell Curl",
-    "muscle_group": "Biceps",
-    "primary_muscle": "Biceps Brachii",
-    "secondary_muscles": [
-      "Forearms"
-    ],
-    "instructions": [
-      "Stand holding a barbell with an underhand, shoulder-width grip.",
-      "Keep your elbows pinned to your sides.",
-      "Curl the bar up toward your shoulders.",
-      "Lower it back down slowly to full extension."
-    ],
-    "form_tips": [
-      "Avoid swinging your torso to generate momentum.",
-      "Keep your wrists straight throughout the curl.",
-      "Squeeze the biceps at the top of the movement."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/biceps_barbell_curl.png')
-  },
-  {
-    "id": "ex-10",
-    "name": "Bench Dip",
-    "muscle_group": "Triceps",
-    "primary_muscle": "Triceps Brachii",
+    "id": "ex-17",
+    "name": "Cable Chest Fly",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
     "secondary_muscles": [
       "Anterior Deltoids"
     ],
     "instructions": [
-      "Sit on the edge of a bench with hands gripping the edge beside your hips.",
-      "Walk your feet forward and lower your body by bending your elbows.",
-      "Lower until your upper arms are roughly parallel to the floor.",
-      "Push back up to the starting position."
+      "Stand between cable pulleys in middle position.",
+      "Bring hands together in wide arc.",
+      "Return to start feeling stretch."
     ],
     "form_tips": [
-      "Keep your elbows pointing backward, not out to the sides.",
-      "Don't let your shoulders shrug up toward your ears.",
-      "Add weight on your lap for extra resistance once bodyweight gets easy."
+      "Slight bend in elbows throughout.",
+      "Engage core to prevent torso rotation."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/triceps_bench_dip.png')
+    "common_mistakes": [
+      "Turning the fly into a press."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
   },
   {
-    "id": "ex-11",
-    "name": "Leg Press",
-    "muscle_group": "Legs",
-    "primary_muscle": "Quadriceps",
+    "id": "ex-18",
+    "name": "Dips (Chest Focus)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major (Lower)",
     "secondary_muscles": [
-      "Glutes",
-      "Hamstrings"
+      "Triceps",
+      "Anterior Deltoids"
     ],
     "instructions": [
-      "Sit in the leg press machine with feet shoulder-width apart on the platform.",
-      "Lower the platform by bending your knees toward your chest.",
-      "Stop when your knees reach about a 90-degree angle.",
-      "Push through your heels to extend your legs back out."
+      "Support body on dip bars.",
+      "Lean torso forward and bend elbows to lower body.",
+      "Press back up to lock out."
     ],
     "form_tips": [
-      "Avoid locking your knees completely at the top.",
-      "Keep your lower back pressed against the seat.",
-      "Don't let your knees cave inward during the press."
+      "Keep elbows slightly flared.",
+      "Maintain forward lean."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/legs_leg_press.png')
+    "common_mistakes": [
+      "Staying too upright (shifts focus to triceps)."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
   },
   {
-    "id": "ex-12",
-    "name": "Lat Pulldown",
+    "id": "ex-h-chest-1",
+    "name": "Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
+    "secondary_muscles": [
+      "Triceps",
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Start in high plank position.",
+      "Lower chest to floor.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep body in straight line.",
+      "Elbows at 45 degrees."
+    ],
+    "common_mistakes": [
+      "Sagging hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-2",
+    "name": "Dumbbell Floor Press",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
+    "secondary_muscles": [
+      "Triceps",
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Lie on floor with knees bent.",
+      "Press dumbbells up from floor.",
+      "Lower until elbows touch floor."
+    ],
+    "form_tips": [
+      "Control the descent.",
+      "Keep lower back flat."
+    ],
+    "common_mistakes": [
+      "Bouncing elbows."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-3",
+    "name": "Dumbbell Chest Fly",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
+    "secondary_muscles": [
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Lie on back holding dumbbells above chest.",
+      "Lower arms in wide arc.",
+      "Bring back together squeezing chest."
+    ],
+    "form_tips": [
+      "Slight bend in elbows."
+    ],
+    "common_mistakes": [
+      "Lowering too deep."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-4",
+    "name": "Incline Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major (Lower)",
+    "secondary_muscles": [
+      "Triceps",
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Place hands on elevated surface (bench/chair).",
+      "Lower chest to surface.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep body straight.",
+      "Brace core."
+    ],
+    "common_mistakes": [
+      "Bending at hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-5",
+    "name": "Decline Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major (Upper)",
+    "secondary_muscles": [
+      "Triceps",
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Place feet on elevated surface (bench/chair).",
+      "Lower chest to floor.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep hips high and stable.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Sagging midsection."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-6",
+    "name": "Wide Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
+    "secondary_muscles": [
+      "Triceps",
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "High plank with hands wider than shoulder-width.",
+      "Lower chest to floor.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep core engaged.",
+      "Do not flare elbows excessively."
+    ],
+    "common_mistakes": [
+      "Shallow range of motion."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-chest-7",
+    "name": "Dumbbell Pullover",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major / Lats",
+    "secondary_muscles": [
+      "Triceps"
+    ],
+    "instructions": [
+      "Lie on back holding single dumbbell over chest.",
+      "Lower weight back overhead.",
+      "Pull back to starting position."
+    ],
+    "form_tips": [
+      "Slight bend in elbows.",
+      "Keep lower back flat."
+    ],
+    "common_mistakes": [
+      "Bending elbows too much."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-3",
+    "name": "Deadlift",
+    "equipment_required": "barbell",
+    "muscle_group": "Back",
+    "primary_muscle": "Hamstrings / Lower Back",
+    "secondary_muscles": [
+      "Glutes",
+      "Upper Back"
+    ],
+    "instructions": [
+      "Stand with feet hip-width apart under barbell.",
+      "Hinge hips and bend knees to grip bar.",
+      "Drive through legs to lift bar, locking out hips."
+    ],
+    "form_tips": [
+      "Keep spine neutral.",
+      "Bar close to shins."
+    ],
+    "common_mistakes": [
+      "Rounding lower back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-5",
+    "name": "Pull-Up",
+    "equipment_required": "bodyweight",
     "muscle_group": "Back",
     "primary_muscle": "Latissimus Dorsi",
     "secondary_muscles": [
@@ -277,45 +310,993 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Rhomboids"
     ],
     "instructions": [
-      "Sit at the machine and grip the bar wider than shoulder-width.",
-      "Lean back slightly and pull the bar down to your upper chest.",
-      "Squeeze your shoulder blades together at the bottom.",
-      "Slowly release the bar back to the starting position."
+      "Grip pull-up bar palms facing away.",
+      "Pull chest up to bar.",
+      "Lower under control."
     ],
     "form_tips": [
-      "Avoid pulling with your arms alone; drive with your lats.",
-      "Don't lean back excessively to cheat the weight down.",
-      "Keep your chest up throughout the movement."
+      "Full range of motion.",
+      "Engage scapula first."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/back_lat_pulldown.png')
+    "common_mistakes": [
+      "Kipping or using momentum."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
   },
   {
-    "id": "ex-13",
-    "name": "Push-Up",
-    "muscle_group": "Chest",
-    "primary_muscle": "Pectoralis Major",
+    "id": "ex-6",
+    "name": "Bent-Over Barbell Row",
+    "equipment_required": "barbell",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
     "secondary_muscles": [
-      "Triceps",
-      "Core"
+      "Rhomboids",
+      "Biceps"
     ],
     "instructions": [
-      "Start in a plank position with hands slightly wider than shoulders.",
-      "Keep your body in a straight line from head to heels.",
-      "Lower your chest toward the floor by bending your elbows.",
-      "Push back up to the starting position."
+      "Hinge forward holding barbell.",
+      "Pull bar to lower chest.",
+      "Lower under control."
     ],
     "form_tips": [
-      "Keep your core braced to prevent hips from sagging.",
-      "Lower until your chest is a few inches from the floor.",
-      "Exhale as you push up."
+      "Keep back flat.",
+      "Drive elbows up."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/chest_pushup.png')
+    "common_mistakes": [
+      "Standing too upright."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-12",
+    "name": "Lat Pulldown",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
+    "secondary_muscles": [
+      "Biceps",
+      "Rhomboids"
+    ],
+    "instructions": [
+      "Sit at pulley station.",
+      "Pull bar down to upper chest.",
+      "Return slowly."
+    ],
+    "form_tips": [
+      "Keep chest up.",
+      "Lean slightly back."
+    ],
+    "common_mistakes": [
+      "Pulling behind neck."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-19",
+    "name": "Seated Cable Row",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Back",
+    "primary_muscle": "Rhomboids / Lats",
+    "secondary_muscles": [
+      "Biceps",
+      "Forearms"
+    ],
+    "instructions": [
+      "Sit at cable station with feet on platform.",
+      "Pull handle to abdomen.",
+      "Extend arms fully to return."
+    ],
+    "form_tips": [
+      "Maintain upright posture.",
+      "Squeeze shoulder blades."
+    ],
+    "common_mistakes": [
+      "Leaning too far back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-1",
+    "name": "Dumbbell Row",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
+    "secondary_muscles": [
+      "Rhomboids",
+      "Biceps"
+    ],
+    "instructions": [
+      "Support knee and hand on flat surface.",
+      "Pull dumbbell to hip.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Keep spine flat.",
+      "Pull with elbow."
+    ],
+    "common_mistakes": [
+      "Torso rotation."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-2",
+    "name": "Superman",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Back",
+    "primary_muscle": "Erector Spinae",
+    "secondary_muscles": [
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Lie face down on floor.",
+      "Lift arms, chest, and legs off floor.",
+      "Hold for 2 seconds, then lower."
+    ],
+    "form_tips": [
+      "Keep neck neutral.",
+      "Squeeze lower back gently."
+    ],
+    "common_mistakes": [
+      "Jerking neck."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-3",
+    "name": "Single Arm Dumbbell Row",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
+    "secondary_muscles": [
+      "Biceps"
+    ],
+    "instructions": [
+      "Stand in staggered stance holding dumbbell.",
+      "Hinge forward and pull dumbbell to hip.",
+      "Lower with control."
+    ],
+    "form_tips": [
+      "Support opposite hand on thigh.",
+      "Keep back straight."
+    ],
+    "common_mistakes": [
+      "Rounding shoulders."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-4",
+    "name": "Resistance Band Row",
+    "equipment_required": "resistance_band",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
+    "secondary_muscles": [
+      "Biceps",
+      "Rear Delts"
+    ],
+    "instructions": [
+      "Loop band around feet or anchor.",
+      "Hold handles and pull to chest.",
+      "Extend arms slowly."
+    ],
+    "form_tips": [
+      "Maintain straight back.",
+      "Keep elbows tucked."
+    ],
+    "common_mistakes": [
+      "Shrugging shoulders."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-5",
+    "name": "Bird Dog",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Back",
+    "primary_muscle": "Erector Spinae / Core",
+    "secondary_muscles": [
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Start on hands and knees.",
+      "Extend opposite arm and leg straight out.",
+      "Hold for 2 seconds, return and switch."
+    ],
+    "form_tips": [
+      "Keep hips level.",
+      "Do not arch back too much."
+    ],
+    "common_mistakes": [
+      "Lifting leg too high."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-6",
+    "name": "Inverted Bodyweight Row",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Back",
+    "primary_muscle": "Latissimus Dorsi",
+    "secondary_muscles": [
+      "Biceps"
+    ],
+    "instructions": [
+      "Lie under sturdy table or bar.",
+      "Grip edge and pull chest up.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Keep body straight like a plank.",
+      "Pull shoulders back."
+    ],
+    "common_mistakes": [
+      "Sagging hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-back-7",
+    "name": "Resistance Band Pull-Apart",
+    "equipment_required": "resistance_band",
+    "muscle_group": "Back",
+    "primary_muscle": "Rhomboids / Rear Delts",
+    "secondary_muscles": [
+      "Trapezius"
+    ],
+    "instructions": [
+      "Hold band out in front at shoulder height.",
+      "Pull hands apart out to sides.",
+      "Return to start slowly."
+    ],
+    "form_tips": [
+      "Keep arms straight but not locked.",
+      "Squeeze shoulder blades."
+    ],
+    "common_mistakes": [
+      "Using momentum."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-4",
+    "name": "Overhead Press",
+    "equipment_required": "barbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids",
+    "secondary_muscles": [
+      "Triceps",
+      "Lateral Deltoids"
+    ],
+    "instructions": [
+      "Stand holding barbell at shoulder level.",
+      "Press bar straight overhead.",
+      "Lower under control."
+    ],
+    "form_tips": [
+      "Squeeze glutes and core.",
+      "Keep wrists aligned."
+    ],
+    "common_mistakes": [
+      "Excessive arching of back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-21",
+    "name": "Face Pull",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Posterior Deltoids",
+    "secondary_muscles": [
+      "Rhomboids",
+      "Rotator Cuff"
+    ],
+    "instructions": [
+      "Hold rope handles from high pulley.",
+      "Pull hands toward ears keeping elbows high.",
+      "Return under control."
+    ],
+    "form_tips": [
+      "Squeeze upper back.",
+      "Rotate hands out at end."
+    ],
+    "common_mistakes": [
+      "Using too much weight."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-22",
+    "name": "Upright Row",
+    "equipment_required": "barbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Lateral Deltoids / Traps",
+    "secondary_muscles": [
+      "Biceps",
+      "Brachialis"
+    ],
+    "instructions": [
+      "Stand holding barbell in front.",
+      "Pull bar up close to body to upper chest.",
+      "Lower with control."
+    ],
+    "form_tips": [
+      "Keep elbows above hands.",
+      "Do not pull too high."
+    ],
+    "common_mistakes": [
+      "Jerking weight up."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-1",
+    "name": "Arnold Press",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids",
+    "secondary_muscles": [
+      "Lateral Deltoids",
+      "Triceps"
+    ],
+    "instructions": [
+      "Hold dumbbells palms facing in.",
+      "Rotate palms out as you press up.",
+      "Reverse rotation as you lower."
+    ],
+    "form_tips": [
+      "Control the rotation.",
+      "Brace core."
+    ],
+    "common_mistakes": [
+      "Pressing too fast."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-2",
+    "name": "Lateral Raise",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Lateral Deltoids",
+    "secondary_muscles": [
+      "Anterior Deltoids"
+    ],
+    "instructions": [
+      "Stand holding dumbbells at sides.",
+      "Raise arms to sides to shoulder height.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Slight bend in elbows.",
+      "Pinkies slightly up at top."
+    ],
+    "common_mistakes": [
+      "Swinging torso."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-3",
+    "name": "Pike Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids",
+    "secondary_muscles": [
+      "Triceps",
+      "Upper Chest"
+    ],
+    "instructions": [
+      "Start in push-up position, hike hips high.",
+      "Lower head toward floor.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep core engaged.",
+      "Elbows back slightly."
+    ],
+    "common_mistakes": [
+      "Flaring elbows."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-4",
+    "name": "Dumbbell Shoulder Press",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids",
+    "secondary_muscles": [
+      "Triceps"
+    ],
+    "instructions": [
+      "Hold dumbbells at shoulder height palms forward.",
+      "Press overhead.",
+      "Lower with control."
+    ],
+    "form_tips": [
+      "Do not arch lower back.",
+      "Keep wrists straight."
+    ],
+    "common_mistakes": [
+      "Leaning back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-5",
+    "name": "Dumbbell Front Raise",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids",
+    "secondary_muscles": [
+      "Lateral Deltoids"
+    ],
+    "instructions": [
+      "Hold dumbbells in front of thighs palms down.",
+      "Raise arms to shoulder height.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Slight elbow bend.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Using body swing."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-6",
+    "name": "Shoulder Tap",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Anterior Deltoids / Core",
+    "secondary_muscles": [
+      "Triceps"
+    ],
+    "instructions": [
+      "Start in high plank position.",
+      "Tap opposite shoulder with hand.",
+      "Alternate sides keeping hips still."
+    ],
+    "form_tips": [
+      "Brace core tightly.",
+      "Minimize hip rocking."
+    ],
+    "common_mistakes": [
+      "Swinging hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-shoulder-7",
+    "name": "Bent-Over Dumbbell Reverse Fly",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Posterior Deltoids",
+    "secondary_muscles": [
+      "Rhomboids"
+    ],
+    "instructions": [
+      "Hinge forward holding dumbbells.",
+      "Raise arms out to sides.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Squeeze shoulder blades.",
+      "Keep neck neutral."
+    ],
+    "common_mistakes": [
+      "Swinging weights."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-9",
+    "name": "Barbell Curl",
+    "equipment_required": "barbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Stand holding barbell palms forward.",
+      "Curl bar to shoulders.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Keep elbows locked at sides.",
+      "Avoid body swing."
+    ],
+    "common_mistakes": [
+      "Using momentum."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-25",
+    "name": "Preacher Curl",
+    "equipment_required": "barbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps (Short Head)",
+    "secondary_muscles": [
+      "Brachialis"
+    ],
+    "instructions": [
+      "Sit at preacher bench, arms resting on pad.",
+      "Curl bar toward chin.",
+      "Lower fully."
+    ],
+    "form_tips": [
+      "Keep back of arms flat on pad.",
+      "Do not swing shoulders."
+    ],
+    "common_mistakes": [
+      "Incomplete range of motion."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-26",
+    "name": "Cable Curl",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [
+      "Brachioradialis"
+    ],
+    "instructions": [
+      "Attach bar to low pulley.",
+      "Curl bar up keeping elbows in.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Squeeze biceps at top.",
+      "Stand tall."
+    ],
+    "common_mistakes": [
+      "Elbows moving forward."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-1",
+    "name": "Dumbbell Hammer Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Brachialis / Biceps",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Hold dumbbells palms facing in.",
+      "Curl weights up keeping palms facing.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Keep elbows still.",
+      "Squeeze at top."
+    ],
+    "common_mistakes": [
+      "Swinging shoulders."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-2",
+    "name": "Concentration Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [],
+    "instructions": [
+      "Sit and rest elbow on inner thigh.",
+      "Curl dumbbell toward shoulder.",
+      "Lower fully."
+    ],
+    "form_tips": [
+      "Keep arm isolated.",
+      "Focus on bicep contraction."
+    ],
+    "common_mistakes": [
+      "Moving the thigh."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-3",
+    "name": "Chin-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [
+      "Lats",
+      "Forearms"
+    ],
+    "instructions": [
+      "Grip bar underhand (palms facing you).",
+      "Pull chest to bar.",
+      "Lower fully."
+    ],
+    "form_tips": [
+      "Engage biceps fully.",
+      "Full extension at bottom."
+    ],
+    "common_mistakes": [
+      "Using swing."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-4",
+    "name": "Dumbbell Bicep Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Stand holding dumbbells palms out.",
+      "Curl up toward shoulders.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Elbows pinned to sides.",
+      "Keep wrists straight."
+    ],
+    "common_mistakes": [
+      "Swinging torso."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-5",
+    "name": "Dumbbell Reverse Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Brachioradialis",
+    "secondary_muscles": [
+      "Forearms",
+      "Biceps"
+    ],
+    "instructions": [
+      "Hold dumbbells overhand palms down.",
+      "Curl up keeping palms down.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Strengthens wrists and biceps.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Letting wrists sag."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-6",
+    "name": "Resistance Band Bicep Curl",
+    "equipment_required": "resistance_band",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Biceps Brachii",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Stand on band, hold handles palms up.",
+      "Curl hands to shoulders.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Brace core.",
+      "Maintain tension throughout."
+    ],
+    "common_mistakes": [
+      "Standing too loose on band."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-bicep-7",
+    "name": "Resistance Band Hammer Curl",
+    "equipment_required": "resistance_band",
+    "muscle_group": "Biceps",
+    "primary_muscle": "Brachialis",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Stand on band, hold handles palms facing each other.",
+      "Curl hands up.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Keep neutral wrists.",
+      "Pin elbows to sides."
+    ],
+    "common_mistakes": [
+      "Torso movement."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-27",
+    "name": "Close-Grip Bench Press",
+    "equipment_required": "barbell",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [
+      "Chest",
+      "Anterior Delts"
+    ],
+    "instructions": [
+      "Lie on flat bench. Grip bar shoulder-width.",
+      "Lower bar to chest.",
+      "Press back up."
+    ],
+    "form_tips": [
+      "Keep elbows tucked.",
+      "Maintain flat wrists."
+    ],
+    "common_mistakes": [
+      "Grip too narrow."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-28",
+    "name": "Tricep Pushdown",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [],
+    "instructions": [
+      "Hold bar/rope on high pulley.",
+      "Push down extending elbows fully.",
+      "Return to start slowly."
+    ],
+    "form_tips": [
+      "Keep elbows pinned to sides.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Using bodyweight to press."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-30",
+    "name": "Skull Crusher",
+    "equipment_required": "barbell",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [],
+    "instructions": [
+      "Lie on bench holding barbell overhead.",
+      "Lower bar to forehead by bending elbows.",
+      "Press back up."
+    ],
+    "form_tips": [
+      "Keep upper arms vertical.",
+      "Keep elbows from flaring."
+    ],
+    "common_mistakes": [
+      "Moving upper arms."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-1",
+    "name": "Bench Dip",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [
+      "Shoulders",
+      "Chest"
+    ],
+    "instructions": [
+      "Place hands on bench/chair behind you.",
+      "Lower hips bending elbows.",
+      "Press back up."
+    ],
+    "form_tips": [
+      "Keep back close to bench.",
+      "90 degree bend in elbows."
+    ],
+    "common_mistakes": [
+      "Going too low."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-2",
+    "name": "Overhead Tricep Extension",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps (Long Head)",
+    "secondary_muscles": [],
+    "instructions": [
+      "Hold dumbbell overhead with both hands.",
+      "Lower weight behind head.",
+      "Press back up."
+    ],
+    "form_tips": [
+      "Keep elbows pointing forward.",
+      "Brace core."
+    ],
+    "common_mistakes": [
+      "Flaring elbows."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-3",
+    "name": "Tricep Kickback",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [],
+    "instructions": [
+      "Hinge forward holding dumbbells.",
+      "Extend arms back fully.",
+      "Return to start."
+    ],
+    "form_tips": [
+      "Keep upper arms stationary.",
+      "Fully contract tricep."
+    ],
+    "common_mistakes": [
+      "Dropping upper arms."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-4",
+    "name": "Diamond Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [
+      "Chest"
+    ],
+    "instructions": [
+      "High plank with hands close forming diamond.",
+      "Lower chest to hands.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep elbows tucked.",
+      "Drop to knees if needed."
+    ],
+    "common_mistakes": [
+      "Flaring elbows."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-5",
+    "name": "Close-Grip Push-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [
+      "Chest"
+    ],
+    "instructions": [
+      "High plank with hands shoulder-width.",
+      "Lower chest keeping elbows close to body.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Elbows brush ribcage.",
+      "Keep body in line."
+    ],
+    "common_mistakes": [
+      "Elbows flaring."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-6",
+    "name": "Dumbbell Skull Crusher",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [],
+    "instructions": [
+      "Lie on back holding dumbbells overhead.",
+      "Bend elbows to lower dumbbells near ears.",
+      "Extend arms back up."
+    ],
+    "form_tips": [
+      "Keep elbows pointing up.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Moving upper arms."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-tricep-7",
+    "name": "Tricep Dip on Chair",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Triceps",
+    "primary_muscle": "Triceps Brachii",
+    "secondary_muscles": [
+      "Shoulders"
+    ],
+    "instructions": [
+      "Place hands on seat of sturdy chair.",
+      "Lower hips toward floor.",
+      "Push back up."
+    ],
+    "form_tips": [
+      "Keep knees bent for easier variation.",
+      "Chest up."
+    ],
+    "common_mistakes": [
+      "Shrugging shoulders."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-2",
+    "name": "Barbell Squat",
+    "equipment_required": "barbell",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes",
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Rest barbell on upper back.",
+      "Squat down bending knees.",
+      "Drive back up to stand."
+    ],
+    "form_tips": [
+      "Keep chest up.",
+      "Knees track over toes."
+    ],
+    "common_mistakes": [
+      "Knees caving in."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-11",
+    "name": "Leg Press",
+    "equipment_required": "gym_machine",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes",
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Sit in leg press machine.",
+      "Lower weight sled to chest.",
+      "Press back up."
+    ],
+    "form_tips": [
+      "Do not lock knees.",
+      "Keep lower back flat."
+    ],
+    "common_mistakes": [
+      "Too deep range of motion."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
   },
   {
     "id": "ex-14",
     "name": "Romanian Deadlift",
+    "equipment_required": "barbell",
     "muscle_group": "Legs",
     "primary_muscle": "Hamstrings",
     "secondary_muscles": [
@@ -323,637 +1304,574 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Lower Back"
     ],
     "instructions": [
-      "Hold a barbell in front of your thighs with a shoulder-width grip.",
-      "Push your hips back while keeping a slight bend in your knees.",
-      "Lower the bar along your legs until you feel a hamstring stretch.",
-      "Drive your hips forward to return to standing."
+      "Hold barbell at hips.",
+      "Hinge hips backward lowering bar to shins.",
+      "Return to stand."
     ],
     "form_tips": [
-      "Keep the bar close to your legs throughout the movement.",
-      "Maintain a flat back and avoid rounding your spine.",
-      "Stop the descent once you feel a deep hamstring stretch."
+      "Keep knees slightly soft.",
+      "Flat back."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/legs_romanian_deadlift.png')
-  },
-  {
-    "id": "ex-15",
-    "name": "Arnold Press",
-    "muscle_group": "Shoulders",
-    "primary_muscle": "Anterior & Lateral Deltoids",
-    "secondary_muscles": [
-      "Triceps"
+    "common_mistakes": [
+      "Rounding spine."
     ],
-    "instructions": [
-      "Sit holding dumbbells in front of your shoulders, palms facing you.",
-      "Press the dumbbells overhead while rotating your palms to face forward.",
-      "Fully extend your arms at the top.",
-      "Reverse the rotation as you lower back to the start."
-    ],
-    "form_tips": [
-      "Control the rotation smoothly rather than rushing it.",
-      "Keep your core braced to avoid excessive back arch.",
-      "Don't let the dumbbells drift forward or behind your head."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/shoulders_arnold_press.png')
-  },
-  {
-    "id": "ex-16",
-    "name": "Incline Dumbbell Press",
-    "muscle_group": "Chest",
-    "primary_muscle": "Upper Pectoralis Major",
-    "secondary_muscles": [
-      "Anterior Deltoids",
-      "Triceps"
-    ],
-    "instructions": [
-      "Set the bench to a 30-45 degree incline.",
-      "Hold a dumbbell in each hand at shoulder level, palms facing forward.",
-      "Press the dumbbells up until your arms are extended.",
-      "Lower slowly back to the starting position with control."
-    ],
-    "form_tips": [
-      "Don't let the incline exceed 45 degrees or shoulders take over.",
-      "Keep wrists straight and stacked over elbows.",
-      "Squeeze your chest at the top of each rep."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/chest_incline_dumbbell_press.png')
-  },
-  {
-    "id": "ex-17",
-    "name": "Cable Chest Fly",
-    "muscle_group": "Chest",
-    "primary_muscle": "Pectoralis Major",
-    "secondary_muscles": [
-      "Anterior Deltoids"
-    ],
-    "instructions": [
-      "Stand centered between two cable stacks with handles set at chest height.",
-      "Step forward with a slight bend in your elbows.",
-      "Bring your hands together in front of your chest in an arcing motion.",
-      "Slowly return to the starting position, feeling a stretch across the chest."
-    ],
-    "form_tips": [
-      "Keep a slight, fixed bend in the elbows throughout.",
-      "Focus on squeezing the chest rather than pulling with the arms.",
-      "Avoid letting the weights slam at the stretch position."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/chest_cable_fly.png')
-  },
-  {
-    "id": "ex-18",
-    "name": "Dips (Chest Focus)",
-    "muscle_group": "Chest",
-    "primary_muscle": "Lower Pectoralis Major",
-    "secondary_muscles": [
-      "Triceps",
-      "Anterior Deltoids"
-    ],
-    "instructions": [
-      "Grip the parallel bars and support your body with arms extended.",
-      "Lean your torso forward and bend your knees.",
-      "Lower your body until your shoulders are below your elbows.",
-      "Push back up to the starting position."
-    ],
-    "form_tips": [
-      "Leaning forward shifts emphasis onto the chest.",
-      "Avoid flaring elbows out too wide to protect the shoulders.",
-      "Control the descent instead of dropping quickly."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/chest_dips.png')
-  },
-  {
-    "id": "ex-19",
-    "name": "Seated Cable Row",
-    "muscle_group": "Back",
-    "primary_muscle": "Middle Back (Rhomboids)",
-    "secondary_muscles": [
-      "Latissimus Dorsi",
-      "Biceps"
-    ],
-    "instructions": [
-      "Sit with knees slightly bent, gripping the handle with arms extended.",
-      "Keep your back straight and pull the handle toward your torso.",
-      "Squeeze your shoulder blades together at the end of the pull.",
-      "Extend your arms back out with control."
-    ],
-    "form_tips": [
-      "Avoid rounding your back or using excessive body swing.",
-      "Keep your elbows close to your body during the pull.",
-      "Pause briefly at full contraction for better activation."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/back_seated_cable_row.png')
-  },
-  {
-    "id": "ex-20",
-    "name": "Lateral Raise",
-    "muscle_group": "Shoulders",
-    "primary_muscle": "Lateral Deltoids",
-    "secondary_muscles": [
-      "Traps"
-    ],
-    "instructions": [
-      "Stand holding a dumbbell in each hand at your sides.",
-      "Raise your arms out to the sides until they reach shoulder height.",
-      "Keep a slight bend in your elbows throughout.",
-      "Lower the dumbbells back down slowly."
-    ],
-    "form_tips": [
-      "Avoid using momentum or swinging the weights up.",
-      "Lead with your elbows, not your hands.",
-      "Stop at shoulder height to keep tension on the delts."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/shoulders_lateral_raise.png')
-  },
-  {
-    "id": "ex-21",
-    "name": "Face Pull",
-    "muscle_group": "Shoulders",
-    "primary_muscle": "Rear Deltoids",
-    "secondary_muscles": [
-      "Rhomboids",
-      "Rotator Cuff"
-    ],
-    "instructions": [
-      "Set a cable pulley to face height with a rope attachment.",
-      "Pull the rope toward your face, splitting it apart at the end.",
-      "Keep your elbows high and in line with your shoulders.",
-      "Slowly return to the starting position."
-    ],
-    "form_tips": [
-      "Focus on squeezing your rear delts, not your traps.",
-      "Keep your torso upright throughout the movement.",
-      "Use a lighter weight to prioritize form over load."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/shoulders_face_pull.png')
-  },
-  {
-    "id": "ex-22",
-    "name": "Upright Row",
-    "muscle_group": "Shoulders",
-    "primary_muscle": "Lateral Deltoids",
-    "secondary_muscles": [
-      "Traps",
-      "Biceps"
-    ],
-    "instructions": [
-      "Hold a barbell or dumbbells in front of your thighs.",
-      "Pull the weight straight up toward your chin, leading with your elbows.",
-      "Raise until your elbows reach shoulder height.",
-      "Lower back down with control."
-    ],
-    "form_tips": [
-      "Keep the bar close to your body throughout the pull.",
-      "Avoid raising it above shoulder height to protect the shoulder joint.",
-      "Use a moderate grip width to reduce joint strain."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/shoulders_upright_row.png')
-  },
-  {
-    "id": "ex-23",
-    "name": "Dumbbell Hammer Curl",
-    "muscle_group": "Biceps",
-    "primary_muscle": "Brachialis",
-    "secondary_muscles": [
-      "Biceps Brachii",
-      "Forearms"
-    ],
-    "instructions": [
-      "Hold a dumbbell in each hand with palms facing your body.",
-      "Curl the weights up while keeping your palms neutral.",
-      "Bring the dumbbells up to shoulder level.",
-      "Lower back down with control."
-    ],
-    "form_tips": [
-      "Keep your elbows stationary throughout the movement.",
-      "Avoid rotating your wrists during the curl.",
-      "Move at a controlled tempo to maximize tension."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/biceps_hammer_curl.png')
-  },
-  {
-    "id": "ex-24",
-    "name": "Concentration Curl",
-    "muscle_group": "Biceps",
-    "primary_muscle": "Biceps Brachii",
-    "secondary_muscles": [
-      "Forearms"
-    ],
-    "instructions": [
-      "Sit on a bench and brace your elbow against your inner thigh.",
-      "Hold a dumbbell with your arm fully extended.",
-      "Curl the weight up toward your shoulder.",
-      "Lower it back down slowly with full control."
-    ],
-    "form_tips": [
-      "Keep your upper arm completely still throughout.",
-      "Focus on a strong peak contraction at the top.",
-      "Avoid using your shoulder to assist the lift."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/biceps_concentration_curl.png')
-  },
-  {
-    "id": "ex-25",
-    "name": "Preacher Curl",
-    "muscle_group": "Biceps",
-    "primary_muscle": "Biceps Brachii",
-    "secondary_muscles": [
-      "Forearms"
-    ],
-    "instructions": [
-      "Sit at a preacher bench with your upper arms resting on the pad.",
-      "Hold the bar or dumbbells with an underhand grip.",
-      "Curl the weight up toward your shoulders.",
-      "Lower back down slowly without fully relaxing at the bottom."
-    ],
-    "form_tips": [
-      "Avoid locking out and relaxing completely at the bottom.",
-      "Keep your movements slow and controlled to reduce elbow strain.",
-      "Don't let your shoulders round forward during the curl."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/biceps_preacher_curl.png')
-  },
-  {
-    "id": "ex-26",
-    "name": "Cable Curl",
-    "muscle_group": "Biceps",
-    "primary_muscle": "Biceps Brachii",
-    "secondary_muscles": [
-      "Forearms"
-    ],
-    "instructions": [
-      "Stand facing a low cable pulley with a straight or EZ bar attached.",
-      "Hold the bar with an underhand grip, arms extended.",
-      "Curl the bar up toward your shoulders.",
-      "Lower back down under control, maintaining tension."
-    ],
-    "form_tips": [
-      "Keep constant tension on the biceps throughout the set.",
-      "Avoid leaning back to help lift the weight.",
-      "Keep elbows close to your torso."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/biceps_cable_curl.png')
-  },
-  {
-    "id": "ex-27",
-    "name": "Close-Grip Bench Press",
-    "muscle_group": "Triceps",
-    "primary_muscle": "Triceps Brachii",
-    "secondary_muscles": [
-      "Pectoralis Major",
-      "Anterior Deltoids"
-    ],
-    "instructions": [
-      "Lie on a bench and grip the bar with hands shoulder-width apart.",
-      "Lower the bar to your lower chest, keeping elbows tucked.",
-      "Press the bar back up, focusing on triceps extension.",
-      "Lock out your arms at the top."
-    ],
-    "form_tips": [
-      "Keep your elbows close to your body throughout the press.",
-      "Avoid flaring elbows out to protect your shoulders.",
-      "Control the bar on the way down."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/triceps_close_grip_bench.png')
-  },
-  {
-    "id": "ex-28",
-    "name": "Tricep Pushdown",
-    "muscle_group": "Triceps",
-    "primary_muscle": "Triceps Brachii",
-    "secondary_muscles": [],
-    "instructions": [
-      "Stand facing a high cable pulley with a straight or rope attachment.",
-      "Keep your elbows pinned to your sides.",
-      "Push the attachment down until your arms are fully extended.",
-      "Slowly return to the starting position."
-    ],
-    "form_tips": [
-      "Avoid letting your elbows drift away from your body.",
-      "Keep your torso upright and avoid leaning into the movement.",
-      "Fully extend at the bottom for maximum contraction."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/triceps_pushdown.png')
-  },
-  {
-    "id": "ex-29",
-    "name": "Overhead Tricep Extension",
-    "muscle_group": "Triceps",
-    "primary_muscle": "Triceps Brachii (Long Head)",
-    "secondary_muscles": [],
-    "instructions": [
-      "Hold a dumbbell with both hands overhead, arms fully extended.",
-      "Lower the weight behind your head by bending your elbows.",
-      "Keep your upper arms stationary and close to your ears.",
-      "Extend back up to the starting position."
-    ],
-    "form_tips": [
-      "Avoid flaring your elbows out to the sides.",
-      "Keep your core braced to protect your lower back.",
-      "Use a controlled tempo to avoid shoulder strain."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/triceps_overhead_extension.png')
-  },
-  {
-    "id": "ex-30",
-    "name": "Skull Crusher",
-    "muscle_group": "Triceps",
-    "primary_muscle": "Triceps Brachii",
-    "secondary_muscles": [],
-    "instructions": [
-      "Lie on a bench holding an EZ bar with arms extended above your chest.",
-      "Bend your elbows to lower the bar toward your forehead.",
-      "Keep your upper arms stationary throughout.",
-      "Extend your arms back up to the starting position."
-    ],
-    "form_tips": [
-      "Keep your elbows pointed forward, not flared out.",
-      "Lower the bar slowly to avoid hitting your head.",
-      "Avoid moving your upper arms during the rep."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/triceps_skull_crusher.png')
-  },
-  {
-    "id": "ex-31",
-    "name": "Standing Calf Raise",
-    "muscle_group": "Legs",
-    "primary_muscle": "Gastrocnemius",
-    "secondary_muscles": [
-      "Soleus"
-    ],
-    "instructions": [
-      "Stand on a raised platform with your heels hanging off the edge.",
-      "Lower your heels below the platform to feel a calf stretch.",
-      "Rise up onto your toes as high as possible.",
-      "Lower back down slowly with control."
-    ],
-    "form_tips": [
-      "Pause briefly at the top for a strong contraction.",
-      "Avoid bouncing at the bottom of the movement.",
-      "Use a full range of motion for best results."
-    ],
-    "common_mistakes": [],
     "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
   },
   {
-    "id": "ex-32",
-    "name": "Hanging Leg Raise",
-    "muscle_group": "Abs",
-    "primary_muscle": "Lower Rectus Abdominis",
+    "id": "ex-h-leg-1",
+    "name": "Walking Lunge",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
     "secondary_muscles": [
-      "Hip Flexors"
+      "Glutes",
+      "Hamstrings"
     ],
     "instructions": [
-      "Hang from a pull-up bar with arms fully extended.",
-      "Keep your legs straight and raise them until parallel to the floor.",
-      "Lower your legs back down slowly with control.",
-      "Avoid swinging your body during the movement."
+      "Step forward, bend knees.",
+      "Push off front foot to step forward.",
+      "Alternate legs."
     ],
     "form_tips": [
-      "Engage your core before initiating the raise.",
-      "Avoid using momentum to swing your legs up.",
-      "Control the descent instead of dropping quickly."
+      "Keep torso upright.",
+      "Front knee over ankle."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_hanging_leg_raise.png')
+    "common_mistakes": [
+      "Leaning too far forward."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-2",
+    "name": "Bodyweight Squat",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes",
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Stand feet shoulder-width apart.",
+      "Lower hips down.",
+      "Return to stand."
+    ],
+    "form_tips": [
+      "Weight on heels.",
+      "Keep chest up."
+    ],
+    "common_mistakes": [
+      "Knees caving."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-3",
+    "name": "Sumo Squat",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Inner Thighs"
+    ],
+    "instructions": [
+      "Wide stance, toes out 45 degrees.",
+      "Lower hips down.",
+      "Drive up to stand."
+    ],
+    "form_tips": [
+      "Knees track toes.",
+      "Upright posture."
+    ],
+    "common_mistakes": [
+      "Knees collapsing."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-4",
+    "name": "Step-Up",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes"
+    ],
+    "instructions": [
+      "Step onto sturdy platform.",
+      "Drive up to stand on it.",
+      "Step back down."
+    ],
+    "form_tips": [
+      "Push through front heel.",
+      "Stable step."
+    ],
+    "common_mistakes": [
+      "Pushing off back foot."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-5",
+    "name": "Wall Sit",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Back flat against wall.",
+      "Slide down until knees are 90 degrees.",
+      "Hold position."
+    ],
+    "form_tips": [
+      "Feet flat.",
+      "Keep breathing."
+    ],
+    "common_mistakes": [
+      "Shallow bend."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-6",
+    "name": "Dumbbell Goblet Squat",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes",
+      "Core"
+    ],
+    "instructions": [
+      "Hold dumbbell vertically at chest.",
+      "Squat down keeping weight close.",
+      "Drive up to stand."
+    ],
+    "form_tips": [
+      "Brace core.",
+      "Keep elbows pointing down."
+    ],
+    "common_mistakes": [
+      "Rounding back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-leg-7",
+    "name": "Bodyweight Split Squat",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": [
+      "Glutes",
+      "Hamstrings"
+    ],
+    "instructions": [
+      "Stand in staggered split stance.",
+      "Lower rear knee toward floor.",
+      "Drive through front heel to start."
+    ],
+    "form_tips": [
+      "Keep upright posture.",
+      "Equal work on both legs."
+    ],
+    "common_mistakes": [
+      "Front knee pushing too far forward."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
   },
   {
     "id": "ex-33",
     "name": "Cable Crunch",
+    "equipment_required": "gym_machine",
     "muscle_group": "Abs",
     "primary_muscle": "Rectus Abdominis",
-    "secondary_muscles": [
-      "Obliques"
-    ],
+    "secondary_muscles": [],
     "instructions": [
-      "Kneel below a high cable pulley holding a rope attachment near your head.",
-      "Crunch your torso down, bringing your elbows toward your knees.",
-      "Focus on rounding your spine rather than bending at the hips.",
-      "Slowly return to the starting position."
+      "Kneel at high pulley holding rope.",
+      "Flex spine to pull elbows to thighs.",
+      "Return slowly."
     ],
     "form_tips": [
-      "Keep your hips stationary throughout the crunch.",
-      "Focus on contracting your abs, not pulling with your arms.",
-      "Use a moderate weight to maintain proper form."
+      "Use abs, not arms/hips.",
+      "Keep hips stationary."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_cable_crunch.png')
+    "common_mistakes": [
+      "Sitting back on heels."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
   },
   {
-    "id": "ex-34",
+    "id": "ex-h-abs-1",
+    "name": "Plank",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Rectus Abdominis / Core",
+    "secondary_muscles": [
+      "Shoulders"
+    ],
+    "instructions": [
+      "Hold push-up position on elbows.",
+      "Keep body in straight line.",
+      "Hold for time."
+    ],
+    "form_tips": [
+      "Engage core and glutes.",
+      "Neutral neck."
+    ],
+    "common_mistakes": [
+      "Sagging hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-abs-2",
+    "name": "Hanging Leg Raise",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Lower Abs",
+    "secondary_muscles": [
+      "Forearms"
+    ],
+    "instructions": [
+      "Hang from bar.",
+      "Raise legs to 90 degrees.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Do not swing.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Using momentum."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-abs-3",
     "name": "Russian Twist",
+    "equipment_required": "bodyweight",
     "muscle_group": "Abs",
     "primary_muscle": "Obliques",
     "secondary_muscles": [
-      "Rectus Abdominis"
+      "Core"
     ],
     "instructions": [
-      "Sit on the floor with your knees bent and lean back slightly.",
-      "Hold a weight with both hands in front of your chest.",
-      "Rotate your torso to bring the weight to one side of your hips.",
-      "Rotate back through center to the opposite side."
+      "Sit with knees bent, feet slightly off floor.",
+      "Twist torso side to side.",
+      "Repeat."
     ],
     "form_tips": [
-      "Keep your chest up and avoid rounding your back.",
-      "Move with control rather than twisting quickly.",
-      "Lift your feet off the floor for an added challenge."
+      "Keep back straight.",
+      "Move slowly."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_russian_twist.png')
+    "common_mistakes": [
+      "Rounding spine."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
   },
   {
-    "id": "ex-35",
+    "id": "ex-h-abs-4",
     "name": "Bicycle Crunch",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Rectus Abdominis / Obliques",
+    "secondary_muscles": [],
+    "instructions": [
+      "Lie on back, hands behind head.",
+      "Alternate touching elbow to opposite knee.",
+      "Keep cycling legs."
+    ],
+    "form_tips": [
+      "Do not pull on neck.",
+      "Twist from torso."
+    ],
+    "common_mistakes": [
+      "Rushing repetitions."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-abs-5",
+    "name": "Crunch",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Rectus Abdominis",
+    "secondary_muscles": [],
+    "instructions": [
+      "Lie on back with knees bent.",
+      "Curl shoulders off floor.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Exhale as you lift.",
+      "No neck pulling."
+    ],
+    "common_mistakes": [
+      "Lifting lower back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-abs-6",
+    "name": "Mountain Climber",
+    "equipment_required": "bodyweight",
     "muscle_group": "Abs",
     "primary_muscle": "Rectus Abdominis",
     "secondary_muscles": [
-      "Obliques"
+      "Shoulders"
     ],
     "instructions": [
-      "Lie on your back with hands behind your head and knees bent.",
-      "Bring one knee toward your chest while rotating the opposite elbow to meet it.",
-      "Extend the other leg out straight as you rotate.",
-      "Alternate sides in a smooth pedaling motion."
+      "High plank position.",
+      "Drive knees to chest alternately.",
+      "Keep hips low."
     ],
     "form_tips": [
-      "Avoid pulling on your neck with your hands.",
-      "Keep the movement slow and controlled rather than rushed.",
-      "Exhale as you crunch toward each knee."
+      "Align wrists under shoulders.",
+      "Brace core."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/abs_bicycle_crunch.png')
+    "common_mistakes": [
+      "Bouncing hips."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-abs-7",
+    "name": "Lying Leg Raise",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Lower Abs",
+    "secondary_muscles": [],
+    "instructions": [
+      "Lie flat, raise legs to vertical.",
+      "Lower slowly to just above floor.",
+      "Repeat."
+    ],
+    "form_tips": [
+      "Press lower back flat.",
+      "Control descent."
+    ],
+    "common_mistakes": [
+      "Arching back."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
   },
   {
     "id": "ex-36",
     "name": "Wrist Curl",
+    "equipment_required": "barbell",
     "muscle_group": "Forearms",
-    "primary_muscle": "Wrist Flexors",
+    "primary_muscle": "Forearm Flexors",
     "secondary_muscles": [],
     "instructions": [
-      "Sit and rest your forearms on your thighs, palms facing up, holding a barbell.",
-      "Let your wrists hang off your knees.",
-      "Curl the bar up by flexing your wrists.",
-      "Lower back down slowly to full stretch."
+      "Rest forearms on bench holding barbell palms up.",
+      "Curl wrists up.",
+      "Lower slowly."
     ],
     "form_tips": [
-      "Keep your forearms stationary throughout the movement.",
-      "Use a light weight and focus on full range of motion.",
-      "Avoid using your arms or shoulders to assist the curl."
+      "Isolate wrists.",
+      "Controlled movement."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/forearms_wrist_curl.png')
+    "common_mistakes": [
+      "Lifting forearms off bench."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
   },
   {
     "id": "ex-37",
     "name": "Reverse Wrist Curl",
+    "equipment_required": "barbell",
     "muscle_group": "Forearms",
-    "primary_muscle": "Wrist Extensors",
+    "primary_muscle": "Forearm Extensors",
     "secondary_muscles": [],
     "instructions": [
-      "Rest your forearms on your thighs with palms facing down, holding a barbell.",
-      "Let your wrists hang off your knees.",
-      "Extend your wrists to lift the bar upward.",
-      "Lower back down slowly with control."
+      "Rest forearms on bench holding barbell palms down.",
+      "Curl wrists up.",
+      "Lower slowly."
     ],
     "form_tips": [
-      "Use a lighter weight than standard wrist curls.",
-      "Keep the movement slow to avoid straining the wrist joint.",
-      "Maintain full forearm contact with your thighs."
+      "Isolate wrist joint.",
+      "Controlled reps."
     ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/forearms_reverse_wrist_curl.png')
-  },
-  {
-    "id": "ex-38",
-    "name": "Farmer's Carry",
-    "muscle_group": "Forearms",
-    "primary_muscle": "Forearm Flexors (Grip)",
-    "secondary_muscles": [
-      "Traps",
-      "Core"
+    "common_mistakes": [
+      "Forearms lifting."
     ],
-    "instructions": [
-      "Hold a heavy dumbbell or kettlebell in each hand at your sides.",
-      "Stand tall with shoulders back and core braced.",
-      "Walk forward for a set distance or time.",
-      "Set the weights down with control at the end."
-    ],
-    "form_tips": [
-      "Keep your shoulders pulled back, not shrugged up.",
-      "Take controlled, steady steps rather than rushing.",
-      "Grip the handles as hard as possible throughout the carry."
-    ],
-    "common_mistakes": [],
     "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
-  },
-  {
-    "id": "ex-39",
-    "name": "Dead Hang",
-    "muscle_group": "Forearms",
-    "primary_muscle": "Forearm Flexors (Grip)",
-    "secondary_muscles": [
-      "Latissimus Dorsi"
-    ],
-    "instructions": [
-      "Grip a pull-up bar with hands shoulder-width apart.",
-      "Hang with your arms fully extended and feet off the floor.",
-      "Keep your shoulders slightly engaged, not fully relaxed.",
-      "Hold the position for the desired duration."
-    ],
-    "form_tips": [
-      "Avoid swinging your body during the hold.",
-      "Breathe steadily rather than holding your breath.",
-      "Build up hang time gradually to avoid grip fatigue injuries."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/forearms_dead_hang.png')
   },
   {
     "id": "ex-40",
     "name": "Plate Pinch Hold",
+    "equipment_required": "dumbbell",
     "muscle_group": "Forearms",
     "primary_muscle": "Forearm Flexors (Grip)",
     "secondary_muscles": [],
     "instructions": [
-      "Pinch two weight plates together, smooth sides facing out.",
-      "Hold the plates at your sides with straight arms.",
-      "Maintain the pinch grip for the desired duration.",
-      "Set the plates down with control when finished."
+      "Pinch two plates together smooth sides out.",
+      "Hold at sides for time.",
+      "Set down carefully."
     ],
     "form_tips": [
-      "Keep your wrists straight, not bent, during the hold.",
-      "Start with lighter plates to build up grip strength safely.",
-      "Avoid letting your shoulders shrug up during the hold."
-    ],
-    "common_mistakes": [],
-    "image_url": require('../../assets/images/exercises/forearms_plate_pinch_hold.png')
-  },
-  {
-    "id": "ex-hip-thrust",
-    "name": "Hip Thrust",
-    "muscle_group": "Glutes",
-    "primary_muscle": "Gluteus Maximus",
-    "secondary_muscles": [
-      "Hamstrings",
-      "Core"
-    ],
-    "instructions": [
-      "Sit on the floor with your upper back resting against a sturdy bench.",
-      "Roll a barbell over your hips, using a pad for comfort.",
-      "Place feet flat on the floor, hip-width apart.",
-      "Drive through your heels to lift your hips until thighs are parallel to floor.",
-      "Squeeze glutes at lockout, then lower hips back down."
-    ],
-    "form_tips": [
-      "Keep your chin tucked and look forward, not up at the ceiling.",
-      "Ensure shins are vertical at the top of the lift."
+      "Keep wrists straight.",
+      "Maintain firm pinch."
     ],
     "common_mistakes": [
-      "Hyperextending the lower back at the top.",
-      "Pushing through the toes instead of the heels."
+      "Shrugging shoulders."
     ],
-    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
   },
   {
-    "id": "ex-calf-raise",
-    "name": "Calf Raise",
-    "muscle_group": "Calves",
-    "primary_muscle": "Gastrocnemius",
+    "id": "ex-h-forearm-1",
+    "name": "Farmer's Carry",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearms / Grip",
     "secondary_muscles": [
-      "Soleus"
+      "Core",
+      "Traps"
     ],
     "instructions": [
-      "Stand with the balls of your feet on an elevated step or block.",
-      "Hold onto a support for balance if needed.",
-      "Lower your heels below the step level to feel a stretch.",
-      "Push up high onto your toes, contracting the calves.",
-      "Hold the contraction for a second, then lower slowly."
+      "Carry heavy dumbbells in each hand.",
+      "Walk forward slowly maintaining posture.",
+      "Put down with control."
     ],
     "form_tips": [
-      "Keep your knees straight but not completely locked out.",
-      "Pause at the bottom stretch and top contraction."
+      "Stand tall.",
+      "Brace core."
     ],
     "common_mistakes": [
-      "Bouncing quickly at the bottom using Achilles tendon elasticity.",
-      "Not using a full range of motion."
+      "Leaning forward."
     ],
-    "image_url": require('../../assets/images/exercises/legs_calf_raise.png')
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-2",
+    "name": "Dead Hang",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearm Flexors (Grip)",
+    "secondary_muscles": [],
+    "instructions": [
+      "Hang from bar.",
+      "Keep shoulders slightly engaged.",
+      "Hold for time."
+    ],
+    "form_tips": [
+      "Active shoulders.",
+      "Steady breathing."
+    ],
+    "common_mistakes": [
+      "Swinging."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-3",
+    "name": "Dumbbell Wrist Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearm Flexors",
+    "secondary_muscles": [],
+    "instructions": [
+      "Rest forearms on thighs holding dumbbells palms up.",
+      "Curl wrists up.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Isolate the wrists.",
+      "Full range of motion."
+    ],
+    "common_mistakes": [
+      "Lifting elbows."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-4",
+    "name": "Dumbbell Reverse Wrist Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearm Extensors",
+    "secondary_muscles": [],
+    "instructions": [
+      "Rest forearms on thighs holding dumbbells palms down.",
+      "Curl wrists up.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Isolate wrists.",
+      "Controlled speed."
+    ],
+    "common_mistakes": [
+      "Using arm movement."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-5",
+    "name": "Towel Dead Hang",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearm Flexors (Grip)",
+    "secondary_muscles": [],
+    "instructions": [
+      "Drape towel over bar.",
+      "Grip towel ends and hang.",
+      "Hold for time."
+    ],
+    "form_tips": [
+      "Active shoulders.",
+      "Squeeze grip hard."
+    ],
+    "common_mistakes": [
+      "Swinging."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-6",
+    "name": "Dumbbell Farmer's Walk",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearms (Grip)",
+    "secondary_muscles": [
+      "Shoulders"
+    ],
+    "instructions": [
+      "Hold dumbbells at sides.",
+      "Walk in straight line.",
+      "Hold grip firmly."
+    ],
+    "form_tips": [
+      "Chest high.",
+      "Do not shrug."
+    ],
+    "common_mistakes": [
+      "Rushing steps."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-forearm-7",
+    "name": "Behind-the-Back Wrist Curl",
+    "equipment_required": "dumbbell",
+    "muscle_group": "Forearms",
+    "primary_muscle": "Forearm Flexors",
+    "secondary_muscles": [],
+    "instructions": [
+      "Stand holding dumbbells behind your back palms facing away.",
+      "Curl wrists upward.",
+      "Lower slowly."
+    ],
+    "form_tips": [
+      "Control the weight.",
+      "Keep arms straight."
+    ],
+    "common_mistakes": [
+      "Using shoulder shrug."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
   }
 ];
 
@@ -968,7 +1886,7 @@ export const getExerciseImageUrl = (muscleGroup: string) => {
   if (muscle === 'shoulders') {
     return 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600';
   }
-  if (muscle === 'legs' || muscle === 'glutes' || muscle === 'calves') {
+  if (muscle === 'legs') {
     return 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600';
   }
   if (muscle === 'core' || muscle === 'abs') {
@@ -1097,7 +2015,7 @@ const nameToLocalVideo: { [key: string]: any } = {
   // Forearms
   "wrist curl": require('../../assets/videos/forearms_wrist_curl.mp4'),
   "reverse wrist curl": require('../../assets/videos/forearms_reverse_wrist_curl.mp4'),
-  "farmer's carry": require('../../assets/videos/forearms_farmers_carry.mp4'),
+  "farmer\'s carry": require('../../assets/videos/forearms_farmers_carry.mp4'),
   "dead hang": require('../../assets/videos/forearms_dead_hang.mp4'),
   "plate pinch hold": require('../../assets/videos/forearms_plate_pinch_hold.mp4'),
 };
@@ -1108,4 +2026,10 @@ export const getExerciseVideoSource = (exercise: { name: string }) => {
     return nameToLocalVideo[nameKey];
   }
   return null;
+};
+
+export const getLocalEquipmentRequiredTag = (name: string): 'gym_machine' | 'barbell' | 'dumbbell' | 'bodyweight' | 'resistance_band' | undefined => {
+  const nameLower = name.toLowerCase().trim();
+  const match = MOCK_EXERCISES.find(e => e.name.toLowerCase().trim() === nameLower);
+  return match?.equipment_required;
 };

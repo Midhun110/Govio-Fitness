@@ -619,7 +619,7 @@ export default function AnalyticsView({ session }: AnalyticsViewProps) {
               style={styles.dropdownSelect} 
               onPress={() => {
                 // Collect muscle group options
-                const muscles = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'];
+                const muscles = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'];
                 const opts = muscles.map(m => ({ id: m, name: m }));
                 setExerciseOptions(opts);
                 setSelectedEx({ id: selectedVolumeMuscle, name: selectedVolumeMuscle });

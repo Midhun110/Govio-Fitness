@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions, Modal, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, SafeAreaView, Platform, useWindowDimensions, Modal, TextInput, Alert, KeyboardAvoidingView, Switch } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
-import { Exercise } from '../utils/calculations';
-import { MOCK_EXERCISES, getExerciseImageSource } from '../data/exercisesData';
+import { Exercise, isExerciseMatch } from '../utils/calculations';
+import { MOCK_EXERCISES, getExerciseImageSource, getLocalEquipmentRequiredTag } from '../data/exercisesData';
 import { getLocalCustomExercises, addLocalCustomExercise } from '../utils/customExercises';
 import { triggerSuccessHaptic } from '../utils/haptics';
+import * as SecureStore from 'expo-secure-store';
 
 type MuscleDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -24,6 +25,8 @@ export default function MuscleDetailScreen() {
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [showAllExercises, setShowAllExercises] = useState(false);
 
   // Modal & Form States
   const [modalVisible, setModalVisible] = useState(false);
@@ -45,7 +48,7 @@ export default function MuscleDetailScreen() {
     if (muscle === 'shoulders') {
       return 'https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=150';
     }
-    if (muscle === 'legs' || muscle === 'glutes' || muscle === 'calves') {
+    if (muscle === 'legs') {
       return 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=150';
     }
     if (muscle === 'core' || muscle === 'abs') {
@@ -70,8 +73,6 @@ export default function MuscleDetailScreen() {
         if (cat === 'triceps') return muscle === 'triceps';
         if (cat === 'forearms') return muscle === 'forearms';
         if (cat === 'abs') return muscle === 'abs';
-        if (cat === 'glutes') return muscle === 'glutes';
-        if (cat === 'calves') return muscle === 'calves';
         return muscle === cat;
       });
 
@@ -89,8 +90,6 @@ export default function MuscleDetailScreen() {
         if (cat === 'triceps') return muscle === 'triceps';
         if (cat === 'forearms') return muscle === 'forearms';
         if (cat === 'abs') return muscle === 'abs';
-        if (cat === 'glutes') return muscle === 'glutes';
-        if (cat === 'calves') return muscle === 'calves';
         return muscle === cat;
       });
 
@@ -108,7 +107,11 @@ export default function MuscleDetailScreen() {
       if (error) throw error;
 
       if (data) {
-        const filtered = data.filter((ex: any) => {
+        const mappedData = data.map((ex: any) => ({
+          ...ex,
+          equipment_required: ex.equipment_required || getLocalEquipmentRequiredTag(ex.name)
+        }));
+        const filtered = mappedData.filter((ex: any) => {
           const cat = muscleGroup.toLowerCase();
           const muscle = ex.muscle_group.toLowerCase();
           
@@ -127,12 +130,6 @@ export default function MuscleDetailScreen() {
           }
           if (cat === 'abs') {
             return muscle === 'abs' || muscle === 'core';
-          }
-          if (cat === 'glutes') {
-            return muscle === 'glutes' || (muscle === 'legs' && (ex.name.toLowerCase().includes('deadlift') || ex.name.toLowerCase().includes('squat')));
-          }
-          if (cat === 'calves') {
-            return muscle === 'calves' || (muscle === 'legs' && ex.name.toLowerCase().includes('calf'));
           }
           return muscle === cat;
         });
@@ -219,12 +216,58 @@ export default function MuscleDetailScreen() {
   };
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      if (user.id === 'mock-user-id-12345') {
+        try {
+          const cached = Platform.OS === 'web'
+            ? window.localStorage.getItem('govio_pending_onboarding')
+            : await SecureStore.getItemAsync('govio_pending_onboarding');
+          if (cached) {
+            setProfile(JSON.parse(cached));
+            return;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        setProfile({ training_environment: 'home', home_equipment_level: 'some' });
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (data && !error) {
+          setProfile(data);
+        }
+      } catch (err) {
+        console.error('Error fetching profile in MuscleDetailScreen:', err);
+      }
+    };
+
+    fetchProfile();
     fetchExercises();
     const unsubscribe = navigation.addListener('focus', () => {
+      fetchProfile();
       fetchExercises();
     });
     return unsubscribe;
-  }, [muscleGroup, navigation]);
+  }, [muscleGroup, navigation, user]);
+
+  const filteredExercises = (() => {
+    const filtered = exercises.filter(ex => {
+      if (showAllExercises) return true;
+      const env = profile?.training_environment;
+      const level = profile?.home_equipment_level;
+      return isExerciseMatch(ex, env, level);
+    });
+    if (!showAllExercises && filtered.length < 2 && exercises.length > 0) {
+      return exercises;
+    }
+    return filtered;
+  })();
 
   const scaleStyle = {};
 
@@ -255,14 +298,38 @@ export default function MuscleDetailScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.subtitle}>Targeted Training Library</Text>
+
+            {/* Filter Toggle Row */}
+            {profile?.training_environment === 'home' && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 4,
+                marginBottom: 12,
+              }}>
+                <Text style={{ color: '#E0E0E0', fontSize: 13 }}>Show all exercises</Text>
+                <Switch
+                  value={showAllExercises}
+                  onValueChange={setShowAllExercises}
+                  trackColor={{ false: '#3D4A3D', true: '#D4FF13' }}
+                  thumbColor={showAllExercises ? '#0D141D' : '#7A7A7A'}
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                />
+              </View>
+            )}
             
-            {exercises.length === 0 ? (
+            {filteredExercises.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No exercises found for {muscleGroup}.</Text>
+                <Text style={styles.emptyText}>
+                  {exercises.length === 0
+                    ? `No exercises found for ${muscleGroup}.`
+                    : `No exercises match your equipment access. Turn on 'Show all exercises' to browse all.`}
+                </Text>
               </View>
             ) : (
               <View style={styles.grid}>
-                {exercises.map((exercise) => (
+                {filteredExercises.map((exercise) => (
                   <TouchableOpacity
                     key={exercise.id}
                     style={styles.card}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,8 @@ import {
 import { RouteProp, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
+import { isExerciseMatch } from '../utils/calculations';
+import { MOCK_EXERCISES } from '../data/exercisesData';
 
 type WorkoutDetailScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutDetail'>;
 
@@ -20,15 +22,61 @@ type WorkoutDetailScreenProps = {
 };
 
 export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps) {
-  const { session, workoutId, title, duration, difficulty, calories, description, exercisesList } = route.params;
+  const { session, workoutId, title, duration, difficulty, calories, description, exercisesList, profile } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [isFavorite, setIsFavorite] = useState(false);
 
+  // Automatic Exercise Recommendation/Replacement Engine
+  const recommendedExercises = useMemo(() => {
+    if (!exercisesList) return [];
+    if (!profile || !profile.training_environment) return exercisesList;
+
+    const env = profile.training_environment;
+    const level = profile.home_equipment_level;
+
+    return exercisesList.map((originalEx) => {
+      // Find the exercise definition
+      const exerciseDef = MOCK_EXERCISES.find(e => e.id === originalEx.id) || 
+                          MOCK_EXERCISES.find(e => e.name.toLowerCase() === originalEx.name.toLowerCase());
+      
+      if (!exerciseDef) return originalEx;
+
+      // Check if it matches user's current environment/equipment
+      if (isExerciseMatch(exerciseDef, env, level)) {
+        return originalEx; // Suitable, keep it!
+      }
+
+      // Not suitable! Let's find an alternative that:
+      // 1. Has the same muscle group
+      // 2. Is suitable for the user's current environment/equipment
+      const alternatives = MOCK_EXERCISES.filter(ex => 
+        ex.id !== exerciseDef.id &&
+        ex.muscle_group.toLowerCase() === exerciseDef.muscle_group.toLowerCase() &&
+        isExerciseMatch(ex, env, level)
+      );
+
+      if (alternatives.length > 0) {
+        const bestAlternative = alternatives[0];
+        return {
+          ...originalEx,
+          id: bestAlternative.id,
+          name: bestAlternative.name,
+          muscle_group: bestAlternative.muscle_group,
+          isSwapped: true,
+          originalName: originalEx.name
+        };
+      }
+
+      // Fallback to original if no suitable alternative found
+      return originalEx;
+    });
+  }, [exercisesList, profile]);
+
   const handleStartWorkout = () => {
-    // Navigate to LogWorkout and pass the exercises from this workout
+    // Navigate to LogWorkout and pass the recommended/swapped exercises
     navigation.navigate('LogWorkout', {
       session,
-      initialExercises: exercisesList,
+      initialExercises: recommendedExercises,
     });
   };
 
@@ -40,11 +88,19 @@ export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps)
         <View style={styles.imageContainer}>
           <Image
             source={{
-              uri: workoutId === 'popular-1' 
-                ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=800' // HIIT
-                : workoutId === 'popular-2'
-                ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=800' // Strength
-                : 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=800', // General/Yoga
+              uri: workoutId.startsWith('popular-')
+                ? (workoutId === 'popular-1' 
+                  ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=800' // HIIT
+                  : workoutId === 'popular-2'
+                  ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=800' // Strength
+                  : 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=800') // General
+                : workoutId.startsWith('teen-')
+                ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=800'
+                : workoutId.startsWith('senior-')
+                ? 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=800'
+                : workoutId.startsWith('home-')
+                ? 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?q=80&w=800'
+                : 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=800',
             }}
             style={styles.coverImage}
             resizeMode="cover"
@@ -93,12 +149,12 @@ export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps)
           {/* Exercises Header */}
           <View style={styles.exercisesHeaderRow}>
             <Text style={styles.sectionTitle}>Exercises</Text>
-            <Text style={styles.exercisesCountText}>{exercisesList?.length || 0} Moves</Text>
+            <Text style={styles.exercisesCountText}>{recommendedExercises?.length || 0} Moves</Text>
           </View>
 
           {/* Exercises List */}
           <View style={styles.exercisesList}>
-            {exercisesList?.map((item: any, index: number) => (
+            {recommendedExercises?.map((item: any, index: number) => (
               <View key={item.id || index} style={styles.exerciseItem}>
                 <View style={styles.exerciseIndexContainer}>
                   <Text style={styles.exerciseIndexText}>
@@ -108,6 +164,11 @@ export default function WorkoutDetailScreen({ route }: WorkoutDetailScreenProps)
 
                 <View style={styles.exerciseDetails}>
                   <Text style={styles.exerciseName}>{item.name}</Text>
+                  {item.isSwapped && (
+                    <Text style={{ color: '#D4FF13', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                      🔄 Recommended swap from {item.originalName}
+                    </Text>
+                  )}
                   <Text style={styles.exerciseSubtitle}>
                     {item.sets || 3} Sets • {item.reps || '10-12 reps'}
                   </Text>

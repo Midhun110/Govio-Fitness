@@ -23,9 +23,12 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
-import { calculateNutritionMetrics, NutritionMetrics, UserProfile } from '../utils/calculations';
+import { calculateNutritionMetrics, NutritionMetrics, UserProfile, isExerciseMatch, filterExercisesForUser, normalizeFitnessGoal, normalizeExperienceLevel, classifyUserProfile } from '../utils/calculations';
+import { getDashboardFeatures } from '../utils/dashboardFeatures';
+import { POPULAR_WORKOUTS, Workout } from '../data/workoutsData';
+import { getUserClass, getExercisesForClass } from '../utils/exerciseLibrary';
 import AnalyticsView from '../components/AnalyticsView';
-import { MOCK_EXERCISES, getExerciseImageSource } from '../data/exercisesData';
+import { MOCK_EXERCISES, getExerciseImageSource, getLocalEquipmentRequiredTag } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
 import {
   getNotificationSettings,
@@ -36,6 +39,8 @@ import {
 } from '../utils/notifications';
 import * as SecureStore from 'expo-secure-store';
 import Svg, { Path, Rect, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { getProgramDayDetails } from '../utils/program';
+
 
 const calculateStreak = (workoutDates: string[]): number => {
   if (workoutDates.length === 0) return 0;
@@ -151,16 +156,32 @@ const calculateWeeklyStreak = (workoutDates: string[]): number => {
   return streak;
 };
 
-const getSuggestedMuscleGroup = (workoutsList: any[]): { muscle: string; daysAgo: number | null } => {
+const getSuggestedMuscleGroup = (
+  workoutsList: any[],
+  profile?: UserProfile | null
+): { muscle: string; daysAgo: number | null } => {
   const ALL_MUSCLES = [
-    'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'
+    'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'
   ];
+
+  const userClass = getUserClass(profile);
+  const classExercises = getExercisesForClass(userClass, MOCK_EXERCISES, profile);
+
+  // Filter muscle groups where at least one matching exercise exists in the user class library
+  const eligibleMuscles = ALL_MUSCLES.filter(m => {
+    const matchingCount = classExercises.filter(ex => 
+      ex.muscle_group.toLowerCase() === m.toLowerCase()
+    ).length;
+    return matchingCount > 0;
+  });
+
+  const activeMuscles = eligibleMuscles.length > 0 ? eligibleMuscles : ALL_MUSCLES;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const lastTrainedMap: { [key: string]: Date } = {};
-  ALL_MUSCLES.forEach((m) => {
+  activeMuscles.forEach((m) => {
     lastTrainedMap[m] = new Date(0);
   });
 
@@ -174,7 +195,7 @@ const getSuggestedMuscleGroup = (workoutsList: any[]): { muscle: string; daysAgo
       if (muscle) {
         muscle = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
         if (muscle === 'Core') muscle = 'Abs';
-        if (ALL_MUSCLES.includes(muscle)) {
+        if (activeMuscles.includes(muscle)) {
           if (wDate > lastTrainedMap[muscle]) {
             lastTrainedMap[muscle] = wDate;
           }
@@ -183,10 +204,10 @@ const getSuggestedMuscleGroup = (workoutsList: any[]): { muscle: string; daysAgo
     });
   });
 
-  let stalestMuscle = ALL_MUSCLES[0];
-  let oldestDate = lastTrainedMap[stalestMuscle];
+  let stalestMuscle = activeMuscles[0] || 'Chest';
+  let oldestDate = lastTrainedMap[stalestMuscle] || new Date(0);
 
-  ALL_MUSCLES.forEach((m) => {
+  activeMuscles.forEach((m) => {
     if (lastTrainedMap[m] < oldestDate) {
       oldestDate = lastTrainedMap[m];
       stalestMuscle = m;
@@ -394,6 +415,7 @@ type HomeScreenProps = {
       session?: Session;
     };
   };
+  onProfileUpdate?: () => void;
 };
 
 const MOCK_PROFILE: UserProfile = {
@@ -419,97 +441,29 @@ const MOCK_METRICS: NutritionMetrics = {
   carbs_g: 350,
 };
 
-const POPULAR_WORKOUTS = [
-  {
-    id: 'popular-1',
-    title: 'HIIT Cardio Burn',
-    duration: '20 Min',
-    difficulty: 'Intermediate',
-    calories: '220 Kcal',
-    description: 'A high-intensity interval training designed to burn fat rapidly, improve cardiovascular endurance, and kickstart your metabolism.',
-    goal_tags: ['lose', 'maintain'],
-    experience_level: 'intermediate',
-    exercisesList: [
-      { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '60 sec' },
-      { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '12 reps' },
-      { id: 'ex-7', name: 'Lunges', muscle_group: 'legs', sets: 3, reps: '12 reps' },
-    ],
-  },
-  {
-    id: 'popular-2',
-    title: 'Upper Body Strength',
-    duration: '45 Min',
-    difficulty: 'Advanced',
-    calories: '380 Kcal',
-    description: 'Focus on building lean muscle mass and power across your chest, back, shoulders, and arms with this heavy compound routine.',
-    goal_tags: ['gain', 'maintain'],
-    experience_level: 'advanced',
-    exercisesList: [
-      { id: 'ex-1', name: 'Bench Press', muscle_group: 'chest', sets: 4, reps: '8-10 reps' },
-      { id: 'ex-5', name: 'Pull-up', muscle_group: 'back', sets: 4, reps: '8 reps' },
-      { id: 'ex-6', name: 'Barbell Row', muscle_group: 'back', sets: 3, reps: '10 reps' },
-      { id: 'ex-4', name: 'Overhead Press', muscle_group: 'shoulders', sets: 3, reps: '10 reps' },
-    ],
-  },
-  {
-    id: 'popular-3',
-    title: 'Core Stability & Flow',
-    duration: '30 Min',
-    difficulty: 'Beginner',
-    calories: '150 Kcal',
-    description: 'Strengthen your core foundation, improve your posture, and enhance stability with this bodyweight-only routine.',
-    goal_tags: ['lose', 'maintain', 'gain'],
-    experience_level: 'beginner',
-    exercisesList: [
-      { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '45 sec' },
-      { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '10 reps' },
-      { id: 'ex-2', name: 'Squat', muscle_group: 'legs', sets: 3, reps: '15 reps' },
-    ],
-  },
-  {
-    id: 'popular-4',
-    title: 'Fat Blast Circuit',
-    duration: '25 Min',
-    difficulty: 'Beginner',
-    calories: '260 Kcal',
-    description: 'A metabolic conditioning circuit designed to maximize calorie burn, fat loss, and endurance.',
-    goal_tags: ['lose'],
-    experience_level: 'beginner',
-    exercisesList: [
-      { id: 'ex-8', name: 'Plank', muscle_group: 'core', sets: 3, reps: '45 sec' },
-      { id: 'ex-7', name: 'Lunges', muscle_group: 'legs', sets: 3, reps: '12 reps' },
-    ],
-  },
-  {
-    id: 'popular-5',
-    title: 'Hypertrophy Power Split',
-    duration: '50 Min',
-    difficulty: 'Advanced',
-    calories: '410 Kcal',
-    description: 'Heavy lifting focused on triggering maximum muscle hypertrophy for advanced lifters looking to gain muscle.',
-    goal_tags: ['gain'],
-    experience_level: 'advanced',
-    exercisesList: [
-      { id: 'ex-1', name: 'Bench Press', muscle_group: 'chest', sets: 4, reps: '8-10 reps' },
-      { id: 'ex-6', name: 'Barbell Row', muscle_group: 'back', sets: 3, reps: '10 reps' },
-    ],
-  },
-  {
-    id: 'popular-6',
-    title: 'Full Body Conditioning',
-    duration: '35 Min',
-    difficulty: 'Intermediate',
-    calories: '300 Kcal',
-    description: 'A balanced full body conditioning routine using compound movements to maintain fitness level.',
-    goal_tags: ['maintain', 'lose'],
-    experience_level: 'intermediate',
-    exercisesList: [
-      { id: 'ex-2', name: 'Squat', muscle_group: 'legs', sets: 3, reps: '15 reps' },
-      { id: 'ex-13', name: 'Push-up', muscle_group: 'chest', sets: 3, reps: '10 reps' },
-    ],
-  },
-];
 
+
+const isWorkoutSuitableForUser = (
+  workout: typeof POPULAR_WORKOUTS[0],
+  environment?: 'gym' | 'home' | 'outdoor' | 'calisthenics',
+  homeEquipmentLevel?: 'none' | 'some' | 'full' | null
+): boolean => {
+  if (!environment || environment === 'gym') {
+    return true;
+  }
+  let matchingCount = 0;
+  workout.exercisesList.forEach((wex) => {
+    const exerciseDef = MOCK_EXERCISES.find(e => e.id === wex.id) || MOCK_EXERCISES.find(e => e.name.toLowerCase() === wex.name.toLowerCase());
+    if (exerciseDef) {
+      if (isExerciseMatch(exerciseDef, environment, homeEquipmentLevel)) {
+        matchingCount++;
+      }
+    } else {
+      matchingCount++;
+    }
+  });
+  return (matchingCount / workout.exercisesList.length) >= 0.5;
+};
 
 
 // Global arrays for mock database in development bypass mode
@@ -547,7 +501,7 @@ const MuscleIcon = ({ muscleKey, fallbackEmoji }: { muscleKey: string; fallbackE
   );
 };
 
-export default function HomeScreen({ route }: HomeScreenProps) {
+export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) {
   const session = route?.params?.session;
   const user = session?.user;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -665,49 +619,94 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   };
 
   const getRecommendedWorkouts = () => {
-    const userGoal = profile?.fitness_goal || 'maintain';
-    const userLevel = profile?.experience_level || 'intermediate';
+    const userGoal = normalizeFitnessGoal(profile?.fitness_goal);
+    const userLevel = normalizeExperienceLevel(profile?.experience_level);
+    const env = profile?.training_environment || 'gym';
+    const level = profile?.home_equipment_level || 'none';
+    const ageGroup = profile?.classified_age_group || 'Young Adult';
 
-    return [...POPULAR_WORKOUTS].map(w => {
-      const goalMatch = w.goal_tags.includes(userGoal as any);
-      const levelMatch = w.experience_level.toLowerCase() === userLevel.toLowerCase();
-      
-      let score = 0;
-      let matchReason = '';
-      
-      if (goalMatch && levelMatch) {
-        score = 3;
-        matchReason = 'Goal & Level Match';
-      } else if (goalMatch) {
-        score = 2;
-        matchReason = 'Matches your goal';
-      } else if (levelMatch) {
-        score = 1;
-        matchReason = 'Matches your level';
-      }
+    // 1. Initial Suitability Filter
+    let list = POPULAR_WORKOUTS.filter(w => isWorkoutSuitableForUser(w, env, level));
 
-      return {
-        ...w,
-        score,
-        matchReason,
-        isMatch: score > 0,
-      };
-    }).sort((a, b) => b.score - a.score);
+    // 2. Tab Specific Filtering
+    if (activeLibraryTab === 'for_you') {
+      return list.map(w => {
+        const ageMatch = w.age_groups.includes(ageGroup as any);
+        const levelMatch = w.experience_levels.includes(userLevel as any);
+        const goalMatch = w.fitness_goals.includes(userGoal as any);
+        
+        let score = 0;
+        let matchReason = '';
+        
+        if (goalMatch && levelMatch) {
+          score = 3;
+          matchReason = 'Goal & Level Match';
+        } else if (goalMatch) {
+          score = 2;
+          matchReason = 'Matches your goal';
+        } else if (levelMatch) {
+          score = 1;
+          matchReason = 'Matches your level';
+        } else if (ageMatch) {
+          score = 1;
+          matchReason = 'For your age';
+        }
+
+        return {
+          ...w,
+          score,
+          matchReason,
+          isMatch: score > 0,
+        };
+      }).sort((a, b) => b.score - a.score);
+    }
+
+    if (activeLibraryTab === 'age') {
+      list = list.filter(w => w.age_groups.includes(ageGroup as any));
+    } else if (activeLibraryTab === 'level') {
+      list = list.filter(w => w.experience_levels.includes(userLevel as any));
+    } else if (activeLibraryTab === 'goal') {
+      list = list.filter(w => w.fitness_goals.includes(userGoal as any));
+    } else if (activeLibraryTab === 'equipment') {
+      list = list.filter(w => w.workout_locations.includes(env as any));
+    }
+
+    return list.map(w => ({
+      ...w,
+      score: 1,
+      matchReason: '',
+      isMatch: false,
+    }));
   };
 
   const getRecommendationSubtext = () => {
-    const goal = profile?.fitness_goal || 'maintain';
-    const level = profile?.experience_level || 'intermediate';
+    const goal = normalizeFitnessGoal(profile?.fitness_goal);
+    const level = normalizeExperienceLevel(profile?.experience_level);
+    const age = profile?.classified_age_group || 'Young Adult';
+    const env = profile?.training_environment || 'gym';
+    const equip = profile?.home_equipment_level || 'none';
     
-    const goalLabel = getGoalLabel(goal);
-    const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
-    
-    return `Based on your ${goalLabel} goal and ${levelLabel} level`;
+    if (activeLibraryTab === 'for_you') {
+      return `Customized matches for your profile`;
+    }
+    if (activeLibraryTab === 'age') {
+      return `Workouts tailored for: ${age}`;
+    }
+    if (activeLibraryTab === 'level') {
+      return `Workouts for ${level} experience level`;
+    }
+    if (activeLibraryTab === 'goal') {
+      return `Workouts designed to: ${getGoalLabel(goal)}`;
+    }
+    if (activeLibraryTab === 'equipment') {
+      return `Workouts matching environment: ${env === 'gym' ? 'Gym' : 'Home'} (${equip === 'none' ? 'No Equipment' : equip === 'some' ? 'Basic Equipment' : 'Full Equipment'})`;
+    }
+    return '';
   };
 
   const getWaterGoal = () => {
     const currentWeight = weight || profile?.weight_kg || 70;
-    const fitnessGoal = profile?.fitness_goal || 'maintain';
+    const fitnessGoal = normalizeFitnessGoal(profile?.fitness_goal);
     let baseGoal = currentWeight * 35;
     if (fitnessGoal === 'lose') {
       baseGoal += 350;
@@ -723,21 +722,31 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  // Categorized Workout Libraries Tab State
+  const [activeLibraryTab, setActiveLibraryTab] = useState<'for_you' | 'age' | 'level' | 'goal' | 'equipment'>('for_you');
+
   // Edit Profile Modal State
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [editHeight, setEditHeight] = useState('');
   const [editWeight, setEditWeight] = useState('');
-  const [editGoal, setEditGoal] = useState<'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance'>('maintain');
+  const [editGoal, setEditGoal] = useState<'lose' | 'maintain' | 'gain' | 'recomposition' | 'endurance' | 'strength'>('maintain');
   const [editActivity, setEditActivity] = useState<'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'>('moderate');
   const [editFullName, setEditFullName] = useState('');
   const [editGender, setEditGender] = useState<'male' | 'female' | 'non_binary' | 'other' | 'prefer_not_to_say'>('prefer_not_to_say');
   const [editExperience, setEditExperience] = useState<'beginner' | 'intermediate' | 'advanced'>('beginner');
   const [profileSaving, setProfileSaving] = useState(false);
+  const [editFreq, setEditFreq] = useState<number>(4);
+  const [editDays, setEditDays] = useState<string[]>(['Mon', 'Tue', 'Thu', 'Fri']);
+  const [editEnv, setEditEnv] = useState<'home' | 'gym' | 'outdoor' | 'calisthenics'>('gym');
+  const [editEquip, setEditEquip] = useState<'none' | 'some' | 'full'>('none');
+
+
 
   // Exercises Tab State
   const [exercisesList, setExercisesList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showAllExercises, setShowAllExercises] = useState(false);
 
   const processSuggestions = (workoutsList: any[]) => {
     if (!workoutsList || workoutsList.length === 0) {
@@ -747,7 +756,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     }
 
     const ALL_MUSCLES = [
-      'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'
+      'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'
     ];
     
     const today = new Date();
@@ -1142,11 +1151,47 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         console.error('Error loading mock workouts:', e);
       }
 
-      // Set mock data in development bypass mode
-      setProfile(MOCK_PROFILE);
-      const computedMockMetrics = calculateNutritionMetrics(MOCK_PROFILE);
+      // Try to load cached onboarding/profile data first
+      let activeMockProfile = MOCK_PROFILE;
+      try {
+        const cached = Platform.OS === 'web'
+          ? window.localStorage.getItem('govio_pending_onboarding')
+          : await SecureStore.getItemAsync('govio_pending_onboarding');
+        if (cached) {
+          activeMockProfile = { ...MOCK_PROFILE, ...JSON.parse(cached) };
+        }
+      } catch (e) {
+        console.error('Error loading mock profile from SecureStore:', e);
+      }
+
+      // Auto-initialize program if training schedule exists but program never started
+      if (
+        activeMockProfile.training_days_per_week &&
+        activeMockProfile.training_days &&
+        (!activeMockProfile.program_day || activeMockProfile.program_day === 0)
+      ) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        activeMockProfile = {
+          ...activeMockProfile,
+          program_day: 1,
+          program_start_date: todayStr,
+          program_workouts_completed: 0,
+        };
+        try {
+          if (Platform.OS === 'web') {
+            window.localStorage.setItem('govio_pending_onboarding', JSON.stringify(activeMockProfile));
+          } else {
+            await SecureStore.setItemAsync('govio_pending_onboarding', JSON.stringify(activeMockProfile));
+          }
+        } catch (e) {
+          console.error('Error auto-initializing program locally (HomeScreen):', e);
+        }
+      }
+
+      setProfile(activeMockProfile);
+      const computedMockMetrics = calculateNutritionMetrics(activeMockProfile);
       setMetrics(computedMockMetrics);
-      setWeight(MOCK_PROFILE.weight_kg);
+      setWeight(activeMockProfile.weight_kg);
       setWaterLogged(500);
       const mockWeightLogs = [
         { id: '1', weight_kg: 71.5, created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
@@ -1158,13 +1203,19 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         { id: '7', weight_kg: 70.0, created_at: new Date().toISOString() },
       ];
       setWeightLogs(mockWeightLogs);
-      setEditHeight(MOCK_PROFILE.height_cm.toString());
-      setEditWeight(MOCK_PROFILE.weight_kg.toString());
-      setEditGoal(MOCK_PROFILE.fitness_goal);
-      setEditActivity(MOCK_PROFILE.activity_level);
-      setEditFullName(MOCK_PROFILE.full_name || 'Midhun Nikhil');
-      setEditGender(MOCK_PROFILE.gender || 'male');
-      setEditExperience(MOCK_PROFILE.experience_level || 'intermediate');
+      setEditHeight(activeMockProfile.height_cm.toString());
+      setEditWeight(activeMockProfile.weight_kg.toString());
+      setEditGoal(activeMockProfile.fitness_goal);
+      setEditActivity(activeMockProfile.activity_level);
+      setEditFullName(activeMockProfile.full_name || 'Midhun Nikhil');
+      setEditGender(activeMockProfile.gender || 'male');
+      setEditExperience(activeMockProfile.experience_level || 'intermediate');
+      setEditFreq(activeMockProfile.training_days_per_week || 4);
+      setEditDays(activeMockProfile.training_days || ['Mon', 'Tue', 'Thu', 'Fri']);
+      setEditEnv(activeMockProfile.training_environment || 'gym');
+      setEditEquip(activeMockProfile.home_equipment_level || 'none');
+
+
 
       // Check mock workouts list
       const todayMockWorkout = MOCK_WORKOUTS.find(w => w.date === startOfDayIso);
@@ -1197,7 +1248,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       const mockWkStreak = calculateWeeklyStreak(mockDates);
       setWeeklyStreak(mockWkStreak);
 
-      const mockSugMuscle = getSuggestedMuscleGroup(MOCK_WORKOUTS);
+      const mockSugMuscle = getSuggestedMuscleGroup(MOCK_WORKOUTS, MOCK_PROFILE);
       setSuggestedMuscle(mockSugMuscle);
 
       await checkDraftWorkout();
@@ -1265,6 +1316,25 @@ export default function HomeScreen({ route }: HomeScreenProps) {
             console.error('Error auto-initializing journey_start_date:', e);
           }
         }
+        // Auto-initialize program if training schedule exists but program never started
+        if (
+          profileData.training_days_per_week &&
+          profileData.training_days &&
+          (!profileData.program_day || profileData.program_day === 0)
+        ) {
+          const todayStr = new Date().toISOString().split('T')[0];
+          const initState = {
+            program_day: 1,
+            program_start_date: todayStr,
+            program_workouts_completed: 0,
+          };
+          try {
+            await supabase.from('user_profiles').update(initState).eq('id', user.id);
+          } catch (e) {
+            console.error('Error auto-initializing program in Supabase (HomeScreen):', e);
+          }
+          Object.assign(profileData, initState);
+        }
         setProfile(profileData);
         setWeight(profileData.weight_kg);
       }
@@ -1277,6 +1347,12 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       setEditFullName(profileData.full_name || '');
       setEditGender(profileData.gender || 'prefer_not_to_say');
       setEditExperience(profileData.experience_level || 'beginner');
+      setEditFreq(profileData.training_days_per_week || 4);
+      setEditDays(profileData.training_days || ['Mon', 'Tue', 'Thu', 'Fri']);
+      setEditEnv(profileData.training_environment || 'gym');
+      setEditEquip(profileData.home_equipment_level || 'none');
+
+
 
       // 2. Fetch computed metrics
       const { data: metricsData, error: metricsErr } = await supabase
@@ -1367,7 +1443,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         const realWkStreak = calculateWeeklyStreak(dates);
         setWeeklyStreak(realWkStreak);
 
-        const realSugMuscle = getSuggestedMuscleGroup(allWorkoutsData);
+        const realSugMuscle = getSuggestedMuscleGroup(allWorkoutsData, profileData);
         setSuggestedMuscle(realSugMuscle);
 
         setAllWorkoutDates(dates);
@@ -1485,7 +1561,11 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      setExercisesList(data || []);
+      const mapped = (data || []).map((ex: any) => ({
+        ...ex,
+        equipment_required: ex.equipment_required || getLocalEquipmentRequiredTag(ex.name)
+      }));
+      setExercisesList(mapped);
     } catch (err) {
       console.error('Error fetching exercises:', err);
       const customs = await getLocalCustomExercises();
@@ -1667,7 +1747,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
     setProfileSaving(true);
 
     if (!user || user.id === 'mock-user-id-12345') {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (profile) {
           const updatedProfile: UserProfile = {
             ...profile,
@@ -1678,11 +1758,27 @@ export default function HomeScreen({ route }: HomeScreenProps) {
             weight_kg: parsedWeight,
             fitness_goal: editGoal,
             activity_level: editActivity,
+            training_days_per_week: editFreq,
+            training_days: editDays,
+            training_environment: editEnv,
+            home_equipment_level: editEnv === 'home' ? editEquip : 'none',
           };
-          const newMetrics = calculateNutritionMetrics(updatedProfile);
-          setProfile(updatedProfile);
+          const classifications = classifyUserProfile(updatedProfile);
+          const finalProfile = { ...updatedProfile, ...classifications };
+          const newMetrics = calculateNutritionMetrics(finalProfile);
+          setProfile(finalProfile);
           setMetrics(newMetrics);
           setWeight(parsedWeight);
+
+          try {
+            if (Platform.OS === 'web') {
+              window.localStorage.setItem('govio_pending_onboarding', JSON.stringify(finalProfile));
+            } else {
+              await SecureStore.setItemAsync('govio_pending_onboarding', JSON.stringify(finalProfile));
+            }
+          } catch (e) {
+            console.error('Error saving mock profile:', e);
+          }
 
           if (profile.weight_kg !== parsedWeight) {
             const newLog = {
@@ -1695,8 +1791,10 @@ export default function HomeScreen({ route }: HomeScreenProps) {
         }
         setProfileSaving(false);
         setShowProfileModal(false);
+        if (onProfileUpdate) onProfileUpdate();
       }, 1000);
       return;
+
     }
 
     try {
@@ -1710,6 +1808,10 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           weight_kg: parsedWeight,
           fitness_goal: editGoal,
           activity_level: editActivity,
+          training_days_per_week: editFreq,
+          training_days: editDays,
+          training_environment: editEnv,
+          home_equipment_level: editEnv === 'home' ? editEquip : 'none',
         })
         .eq('id', user.id);
 
@@ -1725,8 +1827,28 @@ export default function HomeScreen({ route }: HomeScreenProps) {
           weight_kg: parsedWeight,
           fitness_goal: editGoal,
           activity_level: editActivity,
+          training_days_per_week: editFreq,
+          training_days: editDays,
+          training_environment: editEnv,
+          home_equipment_level: editEnv === 'home' ? editEquip : 'none',
         };
-        const newMetrics = calculateNutritionMetrics(updatedProfile);
+        const classifications = classifyUserProfile(updatedProfile);
+        const finalProfile = { ...updatedProfile, ...classifications };
+        const newMetrics = calculateNutritionMetrics(finalProfile);
+
+        // Isolated update for classifications (robust to unmigrated schemas)
+        try {
+          await supabase.from('user_profiles').update({
+            classified_age_group: classifications.classified_age_group,
+            classified_experience: classifications.classified_experience,
+            classified_location: classifications.classified_location,
+            classified_equipment: classifications.classified_equipment,
+            classified_goal: classifications.classified_goal
+          }).eq('id', user.id);
+        } catch (classErr) {
+          console.warn('Failed to update classifications in database during profile edit:', classErr);
+        }
+
 
         const { error: metricsErr } = await supabase
           .from('user_metrics')
@@ -1743,9 +1865,9 @@ export default function HomeScreen({ route }: HomeScreenProps) {
 
         if (metricsErr) throw metricsErr;
 
-        setProfile(updatedProfile);
-        setMetrics(newMetrics);
         setWeight(parsedWeight);
+        setProfile(finalProfile);
+        setMetrics(newMetrics);
 
         if (profile.weight_kg !== parsedWeight) {
           try {
@@ -1766,6 +1888,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       }
 
       setShowProfileModal(false);
+      if (onProfileUpdate) onProfileUpdate();
     } catch (err: any) {
       Alert.alert('Save Error', err.message || 'Failed to update profile.');
     } finally {
@@ -1874,6 +1997,8 @@ export default function HomeScreen({ route }: HomeScreenProps) {
       case 'maintain': return 'Maintain';
       case 'gain': return 'Build muscle';
       case 'recomposition': return 'Recomposition';
+      case 'strength': return 'Increase strength';
+      case 'endurance': return 'Improve endurance';
       default: return 'Maintain';
     }
   };
@@ -1910,48 +2035,72 @@ export default function HomeScreen({ route }: HomeScreenProps) {
   const calorieGoal = metrics?.daily_calorie_goal || 2000;
   const caloriePercent = Math.min(100, Math.round((caloriesConsumed / calorieGoal) * 100));
 
-  // Category Pills for Exercises
-  const categories = ['All', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms', 'Glutes', 'Calves'];
+  // Compute personalised feature visibility based on user classification
+  const features = getDashboardFeatures(profile);
 
-  const filteredExercisesList = exercisesList.filter((e) => {
-    const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          e.muscle_group.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    
-    // Search query active: search across all muscle groups by name/muscle name
-    if (searchQuery.trim() !== '') return true;
-    
-    if (selectedCategory === 'All') return true;
-    
-    const cat = selectedCategory.toLowerCase();
-    const muscle = e.muscle_group.toLowerCase();
-    
-    if (cat === 'chest') return muscle === 'chest';
-    if (cat === 'back') return muscle === 'back';
-    if (cat === 'shoulders') return muscle === 'shoulders';
-    if (cat === 'legs') return muscle === 'legs';
-    
-    if (cat === 'biceps') {
-      return muscle === 'biceps' || (muscle === 'arms' && e.name.toLowerCase().includes('bicep'));
-    }
-    if (cat === 'triceps') {
-      return muscle === 'triceps' || (muscle === 'arms' && e.name.toLowerCase().includes('tricep'));
-    }
-    if (cat === 'forearms') {
-      return muscle === 'forearms' || (muscle === 'arms' && !e.name.toLowerCase().includes('bicep') && !e.name.toLowerCase().includes('tricep'));
-    }
-    if (cat === 'abs') {
-      return muscle === 'abs' || muscle === 'core';
-    }
-    if (cat === 'glutes') {
-      return muscle === 'glutes' || (muscle === 'legs' && (e.name.toLowerCase().includes('deadlift') || e.name.toLowerCase().includes('squat')));
-    }
-    if (cat === 'calves') {
-      return muscle === 'calves' || (muscle === 'legs' && e.name.toLowerCase().includes('calf'));
+  // Category Pills for Exercises
+  const categories = ['All', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'];
+
+  const getFilteredExercisesRaw = (applyEquipmentFilter: boolean) => {
+    let baseList = exercisesList;
+    if (applyEquipmentFilter) {
+      const userClass = getUserClass(profile);
+      baseList = getExercisesForClass(userClass, exercisesList, profile);
     }
     
-    return muscle === cat;
-  });
+    return baseList.filter((e) => {
+
+      const matchesSearch = e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            e.muscle_group.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchesSearch) return false;
+      
+      // Search query active: search across all muscle groups by name/muscle name
+      if (searchQuery.trim() !== '') return true;
+      
+      if (selectedCategory === 'All') return true;
+      
+      const cat = selectedCategory.toLowerCase();
+      const muscle = e.muscle_group.toLowerCase();
+      
+      if (cat === 'chest') return muscle === 'chest';
+      if (cat === 'back') return muscle === 'back';
+      if (cat === 'shoulders') return muscle === 'shoulders';
+      if (cat === 'legs') return muscle === 'legs';
+      
+      if (cat === 'biceps') {
+        return muscle === 'biceps' || (muscle === 'arms' && e.name.toLowerCase().includes('bicep'));
+      }
+      if (cat === 'triceps') {
+        return muscle === 'triceps' || (muscle === 'arms' && e.name.toLowerCase().includes('tricep'));
+      }
+      if (cat === 'forearms') {
+        return muscle === 'forearms' || (muscle === 'arms' && !e.name.toLowerCase().includes('bicep') && !e.name.toLowerCase().includes('tricep'));
+      }
+      if (cat === 'abs') {
+        return muscle === 'abs' || muscle === 'core';
+      }
+      if (cat === 'glutes') {
+        return muscle === 'glutes' || (muscle === 'legs' && (e.name.toLowerCase().includes('deadlift') || e.name.toLowerCase().includes('squat')));
+      }
+      if (cat === 'calves') {
+        return muscle === 'calves' || (muscle === 'legs' && e.name.toLowerCase().includes('calf'));
+      }
+      
+      return muscle === cat;
+    });
+  };
+
+  const filteredExercisesList = (() => {
+    const applyFilter = !showAllExercises;
+    const filtered = getFilteredExercisesRaw(applyFilter);
+    if (applyFilter && filtered.length < 2) {
+      const unfiltered = getFilteredExercisesRaw(false);
+      if (unfiltered.length > 0) {
+        return unfiltered;
+      }
+    }
+    return filtered;
+  })();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1982,8 +2131,6 @@ export default function HomeScreen({ route }: HomeScreenProps) {
             { key: 'Legs', icon: '🦵', label: 'Legs' },
             { key: 'Abs', icon: '🧱', label: 'Abs' },
             { key: 'Forearms', icon: '✊', label: 'Forearms' },
-            { key: 'Glutes', icon: '🎯', label: 'Glutes' },
-            { key: 'Calves', icon: '👟', label: 'Calves' },
           ];
 
           return (
@@ -2075,14 +2222,94 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     </TouchableOpacity>
                   )}
 
+                  {features.showProgramCard && profile && profile.program_day && profile.program_day > 0 ? (
+                    <TouchableOpacity
+                      style={styles.programWidgetCard}
+                      activeOpacity={0.85}
+                      onPress={handleStartWorkoutPress}
+                    >
+                      <View style={styles.programWidgetHeader}>
+                        <Text style={styles.programWidgetPill}>100-DAY PROGRAM</Text>
+                        <Text style={styles.programWidgetDayCount}>
+                          Day {profile.program_day} of 100
+                        </Text>
+                      </View>
+                      
+                      {(() => {
+                        const dayNum = profile.program_day as number;
+                        const details = getProgramDayDetails(dayNum, profile);
+                        const progressPercent = (dayNum / 100) * 100;
+                        const completedWorkouts = profile.program_workouts_completed || 0;
+                        
+                        return (
+                          <View>
+                            <Text style={styles.programWidgetFocus}>
+                              {details.isRest ? 'Rest Day 🔋' : `${details.focus} Day ⚡`}
+                            </Text>
+                            
+                            <View style={styles.programProgressBarBg}>
+                              <View 
+                                style={[
+                                  styles.programProgressBarFill, 
+                                  { width: `${Math.min(100, Math.max(0, progressPercent))}%` }
+                                ]} 
+                              />
+                            </View>
+                            
+                            <Text style={styles.programWidgetSubtext}>
+                              {completedWorkouts} workouts completed • Tap to open
+                            </Text>
+                          </View>
+                        );
+                      })()}
+                    </TouchableOpacity>
+                  ) : null}
+
+
                   {/* Quick-Start Button */}
                   <TouchableOpacity
                     style={styles.dashboardQuickStartBtn}
                     activeOpacity={0.85}
                     onPress={handleStartWorkoutPress}
                   >
+
                     <Text style={styles.dashboardQuickStartBtnText}>START WORKOUT SESSION ⚡</Text>
                   </TouchableOpacity>
+
+                  {/* Beginner Tips Banner */}
+                  {features.showBeginnerBanner && (
+                    <View style={{ backgroundColor: '#0E1E0E', borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#D4FF13' }}>
+                      <Text style={{ color: '#D4FF13', fontWeight: '800', fontSize: 12, letterSpacing: 1, marginBottom: 6 }}>💡 BEGINNER TIP</Text>
+                      <Text style={{ color: '#CCCCCC', fontSize: 13, lineHeight: 20 }}>
+                        Focus on form before adding weight. Start with 2–3 sets per exercise and rest 60–90 seconds between sets. Consistency beats intensity at this stage.
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Senior Mobility Banner */}
+                  {features.showMobilityBanner && (
+                    <View style={{ backgroundColor: '#0E1520', borderRadius: 14, padding: 16, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#06B6D4' }}>
+                      <Text style={{ color: '#06B6D4', fontWeight: '800', fontSize: 12, letterSpacing: 1, marginBottom: 6 }}>🧘 SENIOR FITNESS TIP</Text>
+                      <Text style={{ color: '#CCCCCC', fontSize: 13, lineHeight: 20 }}>
+                        Prioritise mobility, balance, and low-impact cardio. Always warm up for 5–10 minutes before training to protect your joints.
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Bodyweight Home Workout Quick Card */}
+                  {features.showBodyweightQuickCard && (
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#111A11', borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#2A3A2A', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                      activeOpacity={0.85}
+                      onPress={() => navigation.navigate('StartWorkout', { session: session!, initialMuscleGroup: 'Abs' })}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#D4FF13', fontWeight: '800', fontSize: 12, letterSpacing: 1, marginBottom: 4 }}>🏠 BODYWEIGHT WORKOUT</Text>
+                        <Text style={{ color: '#CCCCCC', fontSize: 13, lineHeight: 18 }}>No equipment needed. Train anywhere at home.</Text>
+                      </View>
+                      <Text style={{ color: '#D4FF13', fontSize: 18, marginLeft: 12 }}>→</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Continue where you left off Draft Card */}
                   {draftWorkout && (
@@ -2126,10 +2353,12 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                         <Text style={styles.statsCardValue}>{thisWeekSessions}</Text>
                         <Text style={styles.statsCardLabel}>Sessions</Text>
                       </View>
-                      <View style={[styles.statsCardCol, styles.statsCardColDivider]}>
-                        <Text style={styles.statsCardValue}>{thisWeekVolume}</Text>
-                        <Text style={styles.statsCardLabel}>Volume (kg)</Text>
-                      </View>
+                      {features.showVolumeStats && (
+                        <View style={[styles.statsCardCol, styles.statsCardColDivider]}>
+                          <Text style={styles.statsCardValue}>{thisWeekVolume}</Text>
+                          <Text style={styles.statsCardLabel}>Volume (kg)</Text>
+                        </View>
+                      )}
                       <View style={styles.statsCardCol}>
                         <Text style={styles.statsCardValue}>{weeklyStreak}</Text>
                         <Text style={styles.statsCardLabel}>Streak (Wk)</Text>
@@ -2206,122 +2435,185 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   </View>
 
                   {/* 10 Muscle Group Cards Grid */}
-                  <Text style={styles.gridSectionTitle}>Exercise Library & Form Guides</Text>
-                  <Text style={styles.gridSectionSubtitle}>
-                    Select a muscle group to watch step-by-step tutorial videos, read instructions, and master your form.
-                  </Text>
-                  <View style={styles.muscleGrid}>
-                    {MUSCLE_GROUPS.map((m) => {
-                      const imageSource = MUSCLE_IMAGES[m.key];
-                      return (
-                        <TouchableOpacity
-                          key={m.key}
-                          style={styles.muscleCard}
-                          activeOpacity={0.85}
-                          onPress={() => {
-                            navigation.navigate('MuscleDetail', {
-                              session: session!,
-                              muscleGroup: m.key
-                            });
-                          }}
-                        >
-                          {imageSource ? (
-                            <Image
-                              source={imageSource}
-                              style={styles.muscleCardImage}
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View style={styles.muscleCardFallbackContainer}>
-                              <Text style={styles.muscleCardIcon}>{m.icon}</Text>
-                            </View>
-                          )}
-
-                          {/* Gradient Overlay */}
-                          <View style={StyleSheet.absoluteFill}>
-                            <Svg width="100%" height="100%">
-                              <Defs>
-                                <LinearGradient id={`cardGrad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
-                                  <Stop offset="0%" stopColor="transparent" stopOpacity="0" />
-                                  <Stop offset="55%" stopColor="rgba(13, 20, 29, 0.4)" stopOpacity="0.4" />
-                                  <Stop offset="100%" stopColor="rgba(13, 20, 29, 0.95)" stopOpacity="0.95" />
-                                </LinearGradient>
-                              </Defs>
-                              <Rect width="100%" height="100%" fill={`url(#cardGrad-${m.key})`} />
-                            </Svg>
-                          </View>
-
-                          <Text style={styles.muscleCardLabel}>{m.label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  {/* Recommended For You horizontal scroll */}
-                  <View style={[styles.sectionHeaderRow, { flexDirection: 'column', alignItems: 'flex-start', marginBottom: 12 }]}>
-                    <Text style={styles.sectionTitle}>Recommended For You</Text>
-                    <Text style={styles.recommendationSubtext}>{getRecommendationSubtext()}</Text>
-                  </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.popularWorkoutsScroll}
-                  >
-                    {getRecommendedWorkouts().map((workout) => (
-                      <TouchableOpacity
-                        key={workout.id}
-                        style={styles.workoutCard}
-                        activeOpacity={0.85}
-                        onPress={() => navigation.navigate('WorkoutDetail', {
-                          session: session!,
-                          workoutId: workout.id,
-                          title: workout.title,
-                          duration: workout.duration,
-                          difficulty: workout.difficulty,
-                          calories: workout.calories,
-                          description: workout.description,
-                          exercisesList: workout.exercisesList,
-                        })}
-                      >
-                        <Image
-                          source={{
-                            uri: workout.id === 'popular-1'
-                              ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=600'
-                              : workout.id === 'popular-2'
-                              ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
-                              : workout.id === 'popular-3'
-                              ? 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=600'
-                              : workout.id === 'popular-4'
-                              ? 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=600'
-                              : workout.id === 'popular-5'
-                              ? 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
-                              : 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600',
-                          }}
-                          style={styles.workoutCardImage}
-                          resizeMode="cover"
-                        />
-                        <View style={styles.workoutCardOverlay}>
-                          <View style={styles.workoutCardContent}>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                              <View style={styles.workoutDifficultyTag}>
-                                <Text style={styles.workoutDifficultyText}>{workout.difficulty}</Text>
-                              </View>
-                              {workout.isMatch && (
-                                <View style={styles.recommendationBadge}>
-                                  <Text style={styles.recommendationBadgeText}>{workout.matchReason}</Text>
+                  {features.showMuscleGrid && (
+                    <View>
+                      <Text style={styles.gridSectionTitle}>Exercise Library &amp; Form Guides</Text>
+                      <Text style={styles.gridSectionSubtitle}>
+                        Select a muscle group to watch step-by-step tutorial videos, read instructions, and master your form.
+                      </Text>
+                      <View style={styles.muscleGrid}>
+                        {MUSCLE_GROUPS.map((m) => {
+                          const imageSource = MUSCLE_IMAGES[m.key];
+                          return (
+                            <TouchableOpacity
+                              key={m.key}
+                              style={styles.muscleCard}
+                              activeOpacity={0.85}
+                              onPress={() => {
+                                navigation.navigate('MuscleDetail', {
+                                  session: session!,
+                                  muscleGroup: m.key
+                                });
+                              }}
+                            >
+                              {imageSource ? (
+                                <Image
+                                  source={imageSource}
+                                  style={styles.muscleCardImage}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View style={styles.muscleCardFallbackContainer}>
+                                  <Text style={styles.muscleCardIcon}>{m.icon}</Text>
                                 </View>
                               )}
-                            </View>
-                            <Text style={styles.workoutCardTitleText}>{workout.title}</Text>
-                            <View style={styles.workoutMetaRow}>
-                              <Text style={styles.workoutMetaText}>⏱ {workout.duration}</Text>
-                              <Text style={[styles.workoutMetaText, { marginLeft: 12 }]}>🔥 {workout.calories}</Text>
-                            </View>
-                          </View>
+
+                              {/* Gradient Overlay */}
+                              <View style={StyleSheet.absoluteFill}>
+                                <Svg width="100%" height="100%">
+                                  <Defs>
+                                    <LinearGradient id={`cardGrad-${m.key}`} x1="0" y1="0" x2="0" y2="1">
+                                      <Stop offset="0%" stopColor="transparent" stopOpacity="0" />
+                                      <Stop offset="55%" stopColor="rgba(13, 20, 29, 0.4)" stopOpacity="0.4" />
+                                      <Stop offset="100%" stopColor="rgba(13, 20, 29, 0.95)" stopOpacity="0.95" />
+                                    </LinearGradient>
+                                  </Defs>
+                                  <Rect width="100%" height="100%" fill={`url(#cardGrad-${m.key})`} />
+                                </Svg>
+                              </View>
+
+                              <Text style={styles.muscleCardLabel}>{m.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Recommended For You horizontal scroll */}
+                  {features.showRecommended && (
+                    <View>
+                      <View style={[styles.sectionHeaderRow, { flexDirection: 'column', alignItems: 'flex-start', marginBottom: 8 }]}>
+                        <Text style={styles.sectionTitle}>Workout Libraries</Text>
+                        <Text style={styles.recommendationSubtext}>{getRecommendationSubtext()}</Text>
+                      </View>
+
+                      {/* Workout Libraries Pill Tabs */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ flexDirection: 'row', marginBottom: 12, marginTop: 4, paddingHorizontal: 4 }}
+                        contentContainerStyle={{ paddingRight: 20 }}
+                      >
+                        {(['for_you', 'age', 'level', 'goal', 'equipment'] as const).map((tab) => {
+                          let label = 'For You';
+                          if (tab === 'age') label = 'By Age';
+                          if (tab === 'level') label = 'By Level';
+                          if (tab === 'goal') label = 'By Goal';
+                          if (tab === 'equipment') label = 'By Equipment';
+
+                          const isActive = activeLibraryTab === tab;
+                          return (
+                            <TouchableOpacity
+                              key={tab}
+                              style={[
+                                styles.categoryPill,
+                                isActive && styles.categoryPillActive,
+                                { marginRight: 8, paddingHorizontal: 16, paddingVertical: 8 }
+                              ]}
+                              activeOpacity={0.8}
+                              onPress={() => setActiveLibraryTab(tab)}
+                            >
+                              <Text
+                                style={[
+                                  styles.categoryPillText,
+                                  isActive && styles.categoryPillTextActive,
+                                ]}
+                              >
+                                {label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+
+                      {getRecommendedWorkouts().length === 0 ? (
+                        <View style={{ padding: 24, backgroundColor: '#0D141D', borderRadius: 14, alignItems: 'center', marginHorizontal: 4 }}>
+                          <Text style={{ color: '#7A7A7A', fontSize: 14 }}>No workouts found matching this category.</Text>
                         </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      ) : (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.popularWorkoutsScroll}
+                        >
+                          {getRecommendedWorkouts().map((workout) => (
+                            <TouchableOpacity
+                              key={workout.id}
+                              style={styles.workoutCard}
+                              activeOpacity={0.85}
+                              onPress={() => navigation.navigate('WorkoutDetail', {
+                                session: session!,
+                                workoutId: workout.id,
+                                title: workout.title,
+                                duration: workout.duration,
+                                difficulty: workout.difficulty,
+                                calories: workout.calories,
+                                description: workout.description,
+                                exercisesList: workout.exercisesList,
+                                profile: profile
+                              })}
+                            >
+                              <Image
+                                source={{
+                                  uri: workout.id.startsWith('popular-')
+                                    ? (workout.id === 'popular-1'
+                                      ? 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?q=80&w=600'
+                                      : workout.id === 'popular-2'
+                                      ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
+                                      : workout.id === 'popular-3'
+                                      ? 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=600'
+                                      : workout.id === 'popular-4'
+                                      ? 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?q=80&w=600'
+                                      : workout.id === 'popular-5'
+                                      ? 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600'
+                                      : 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600')
+                                    : workout.id.startsWith('teen-')
+                                    ? 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600'
+                                    : workout.id.startsWith('senior-')
+                                    ? 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=600'
+                                    : workout.id.startsWith('home-')
+                                    ? 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?q=80&w=600'
+                                    : 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=600',
+                                }}
+                              style={styles.workoutCardImage}
+                              resizeMode="cover"
+                            />
+                            <View style={styles.workoutCardOverlay}>
+                              <View style={styles.workoutCardContent}>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                  <View style={styles.workoutDifficultyTag}>
+                                    <Text style={styles.workoutDifficultyText}>{workout.difficulty}</Text>
+                                  </View>
+                                  {workout.isMatch && (
+                                    <View style={styles.recommendationBadge}>
+                                      <Text style={styles.recommendationBadgeText}>{workout.matchReason}</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.workoutCardTitleText}>{workout.title}</Text>
+                                <View style={styles.workoutMetaRow}>
+                                  <Text style={styles.workoutMetaText}>⏱ {workout.duration}</Text>
+                                  <Text style={[styles.workoutMetaText, { marginLeft: 12 }]}>🔥 {workout.calories}</Text>
+                                </View>
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -2365,7 +2657,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   </View>
 
                   {/* Weekly Activity Bar Chart */}
-                  {(() => {
+                  {features.showWeeklyChart && (() => {
                     const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                     const today = new Date();
                     const todayDay = today.getDay(); // 0=Sun
@@ -2545,6 +2837,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   })()}
 
                   {/* Calorie Card */}
+                  {features.showCalorieCard && (
                   <View style={styles.card}>
                     <View style={styles.cardHeaderRow}>
                       <Text style={styles.cardTitle}>Calories</Text>
@@ -2622,8 +2915,10 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                       </View>
                     </View>
                   </View>
+                  )}
 
                   {/* Ask Govio AI Entry Card */}
+                  {features.showAiCoach && (
                   <TouchableOpacity
                     style={styles.aiChatEntryCard}
                     activeOpacity={0.85}
@@ -2638,6 +2933,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                     </View>
                     <Text style={styles.aiChatEntryArrow}>→</Text>
                   </TouchableOpacity>
+                  )}
 
                   {/* Today's Food Logs */}
                   {foodLogs.length === 0 ? (
@@ -2720,7 +3016,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   )}
 
                   {/* Water Card */}
-                  {(() => {
+                  {features.showWaterCard && (() => {
                     const waterGoal = getWaterGoal();
                     const waterPercent = Math.min(100, Math.round((waterLogged / waterGoal) * 100));
                     const isWaterGoalMet = waterLogged >= waterGoal;
@@ -2793,7 +3089,7 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   })()}
 
                   {/* Weight Card */}
-                  {(() => {
+                  {features.showWeightTracker && (() => {
                     const sortedLogs = [...weightLogs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
                     const hasEntries = sortedLogs.length >= 2;
                     
@@ -2939,6 +3235,27 @@ export default function HomeScreen({ route }: HomeScreenProps) {
               ))}
             </ScrollView>
 
+            {/* Filter Toggle Row */}
+            {profile?.training_environment === 'home' && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 4,
+                marginTop: 12,
+                marginBottom: 8,
+              }}>
+                <Text style={{ color: '#E0E0E0', fontSize: 13 }}>Show all exercises</Text>
+                <Switch
+                  value={showAllExercises}
+                  onValueChange={setShowAllExercises}
+                  trackColor={{ false: '#3D4A3D', true: '#D4FF13' }}
+                  thumbColor={showAllExercises ? '#0D141D' : '#7A7A7A'}
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                />
+              </View>
+            )}
+
             {/* Exercises List */}
             {filteredExercisesList.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -3025,6 +3342,35 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                 </Text>
               </View>
             </View>
+
+            {/* User Classification Section */}
+            {(profile?.classified_age_group || profile?.classified_experience || profile?.classified_location || profile?.classified_equipment || profile?.classified_goal) && (
+              <View style={styles.notificationBox}>
+                <Text style={styles.notificationBoxTitle}>Fitness Classification</Text>
+                <View style={{ marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#222222' }}>
+                    <Text style={{ color: '#7A7A7A', fontSize: 13, fontWeight: '600' }}>Age Group</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{profile.classified_age_group || '--'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#222222' }}>
+                    <Text style={{ color: '#7A7A7A', fontSize: 13, fontWeight: '600' }}>Experience Level</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{profile.classified_experience || '--'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#222222' }}>
+                    <Text style={{ color: '#7A7A7A', fontSize: 13, fontWeight: '600' }}>Workout Location</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{profile.classified_location || '--'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#222222' }}>
+                    <Text style={{ color: '#7A7A7A', fontSize: 13, fontWeight: '600' }}>Equipment</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>{profile.classified_equipment || '--'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
+                    <Text style={{ color: '#7A7A7A', fontSize: 13, fontWeight: '600' }}>Primary Goal</Text>
+                    <Text style={{ color: '#D4FF13', fontSize: 13, fontWeight: '800' }}>{profile.classified_goal || '--'}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
             {/* Notifications Settings Box */}
             <View style={styles.notificationBox}>
@@ -3320,6 +3666,116 @@ export default function HomeScreen({ route }: HomeScreenProps) {
                   ))}
                 </View>
               </View>
+
+              <View style={styles.modalFormGroup}>
+                <Text style={styles.formLabel}>WORKOUT ENVIRONMENT</Text>
+                <View style={styles.modalSelectRow}>
+                  {([
+                    { k: 'gym', l: 'Gym' },
+                    { k: 'home', l: 'Home' }
+                  ] as const).map((env) => (
+                    <TouchableOpacity
+                      key={env.k}
+                      style={[styles.modalSelectBtn, editEnv === env.k && styles.modalSelectBtnActive]}
+                      onPress={() => setEditEnv(env.k)}
+                    >
+                      <Text style={[styles.modalSelectBtnText, editEnv === env.k && styles.modalSelectBtnTextActive]}>
+                        {env.l}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {editEnv === 'home' && (
+                <View style={styles.modalFormGroup}>
+                  <Text style={styles.formLabel}>HOME EQUIPMENT</Text>
+                  <View style={styles.modalSelectRow}>
+                    {([
+                      { k: 'none', l: 'No Equipment' },
+                      { k: 'some', l: 'Basic' },
+                      { k: 'full', l: 'Full Gym' }
+                    ] as const).map((eq) => (
+                      <TouchableOpacity
+                        key={eq.k}
+                        style={[styles.modalSelectBtn, editEquip === eq.k && styles.modalSelectBtnActive]}
+                        onPress={() => setEditEquip(eq.k)}
+                      >
+                        <Text style={[styles.modalSelectBtnText, editEquip === eq.k && styles.modalSelectBtnTextActive]}>
+                          {eq.l}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+
+              {profile?.program_day ? (
+                <>
+                  <View style={styles.modalFormGroup}>
+                    <Text style={styles.formLabel}>TRAINING FREQUENCY</Text>
+                    <View style={styles.modalSelectRow}>
+                      {([3, 4, 5, 6] as const).map((freq) => (
+                        <TouchableOpacity
+                          key={freq}
+                          style={[styles.modalSelectBtn, editFreq === freq && styles.modalSelectBtnActive]}
+                          onPress={() => {
+                            setEditFreq(freq);
+                            if (freq === 3) setEditDays(['Mon', 'Wed', 'Fri']);
+                            else if (freq === 4) setEditDays(['Mon', 'Tue', 'Thu', 'Fri']);
+                            else if (freq === 5) setEditDays(['Mon', 'Tue', 'Thu', 'Fri', 'Sat']);
+                            else if (freq === 6) setEditDays(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+                          }}
+                        >
+                          <Text style={[styles.modalSelectBtnText, editFreq === freq && styles.modalSelectBtnTextActive]}>
+                            {freq} Days
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.modalFormGroup}>
+                    <Text style={styles.formLabel}>TRAINING WEEKDAYS</Text>
+                    <View style={styles.modalSelectRow}>
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                        const isSelected = editDays.includes(day);
+                        return (
+                          <TouchableOpacity
+                            key={day}
+                            style={[
+                              styles.modalSelectBtn, 
+                              isSelected && styles.modalSelectBtnActive,
+                              { paddingVertical: 8, marginHorizontal: 2, flex: 1 }
+                            ]}
+                            onPress={() => {
+                              if (editDays.includes(day)) {
+                                setEditDays(prev => prev.filter(d => d !== day));
+                              } else {
+                                if (editDays.length >= editFreq) {
+                                  setEditDays(prev => [...prev.slice(1), day]);
+                                } else {
+                                  setEditDays(prev => [...prev, day]);
+                                }
+                              }
+                            }}
+                          >
+                            <Text style={[
+                              styles.modalSelectBtnText, 
+                              isSelected && styles.modalSelectBtnTextActive,
+                              { fontSize: 10 }
+                            ]}>
+                              {day}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              ) : null}
+
 
               <View style={styles.modalFormGroup}>
                 <Text style={styles.formLabel}>HEIGHT (CM)</Text>
@@ -4980,4 +5436,59 @@ const styles = StyleSheet.create({
     backgroundColor: '#3D4A3D',
     marginVertical: 10,
   },
+  programWidgetCard: {
+    backgroundColor: '#121212',
+    borderWidth: 1.5,
+    borderColor: '#222222',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+  },
+  programWidgetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  programWidgetPill: {
+    backgroundColor: 'rgba(212, 255, 19, 0.1)',
+    color: '#D4FF13',
+    borderColor: 'rgba(212, 255, 19, 0.3)',
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  programWidgetDayCount: {
+    color: '#A0A0A0',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  programWidgetFocus: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 12,
+  },
+  programProgressBarBg: {
+    height: 6,
+    backgroundColor: '#1E1E1E',
+    borderRadius: 3,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  programProgressBarFill: {
+    height: '100%',
+    backgroundColor: '#D4FF13',
+    borderRadius: 3,
+  },
+  programWidgetSubtext: {
+    color: '#7A7A7A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
 });
+

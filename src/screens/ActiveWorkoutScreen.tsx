@@ -59,8 +59,9 @@ interface ActiveExerciseState {
 export default function ActiveWorkoutScreen() {
   const route = useRoute<ActiveWorkoutScreenRouteProp>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { session, exercises: initialExercises, workoutName: initialWorkoutName, resumeDraft } = route.params;
+  const { session, exercises: initialExercises, workoutName: initialWorkoutName, resumeDraft, programDay } = route.params;
   const user = session.user;
+
 
   // Active workout states
   const [activeExercises, setActiveExercises] = useState<ActiveExerciseState[]>([]);
@@ -351,6 +352,7 @@ export default function ActiveWorkoutScreen() {
       console.error('Error clearing draft workout:', e);
     }
   };
+
 
   // Debounced draft autosave: triggers 2 seconds after activeExercises or currentIdx changes
   useEffect(() => {
@@ -972,12 +974,33 @@ export default function ActiveWorkoutScreen() {
         console.error('Error saving workout to SecureStore:', e);
       }
 
+      if (programDay) {
+        try {
+          const cached = Platform.OS === 'web'
+            ? window.localStorage.getItem('govio_pending_onboarding')
+            : await SecureStore.getItemAsync('govio_pending_onboarding');
+          if (cached) {
+            const localProfile = JSON.parse(cached);
+            localProfile.program_day = programDay + 1;
+            localProfile.program_workouts_completed = (localProfile.program_workouts_completed || 0) + 1;
+            if (Platform.OS === 'web') {
+              window.localStorage.setItem('govio_pending_onboarding', JSON.stringify(localProfile));
+            } else {
+              await SecureStore.setItemAsync('govio_pending_onboarding', JSON.stringify(localProfile));
+            }
+          }
+        } catch (e) {
+          console.error('Error incrementing mock program day:', e);
+        }
+      }
+
       setSaving(false);
       triggerSuccessHaptic();
       Alert.alert('Success', 'Workout session saved successfully! 💪');
       await clearDraftWorkout();
       navigation.navigate('Home', { session });
       return;
+
     }
 
     // Save to real database
@@ -1062,7 +1085,31 @@ export default function ActiveWorkoutScreen() {
       triggerSuccessHaptic();
       Alert.alert('Success', 'Workout session saved successfully! 💪');
       await clearDraftWorkout();
+
+      if (programDay) {
+        try {
+          const { data: profData } = await supabase
+            .from('user_profiles')
+            .select('program_workouts_completed')
+            .eq('id', user.id)
+            .single();
+            
+          const currentCompleted = profData?.program_workouts_completed || 0;
+          
+          await supabase
+            .from('user_profiles')
+            .update({
+              program_day: programDay + 1,
+              program_workouts_completed: currentCompleted + 1
+            })
+            .eq('id', user.id);
+        } catch (e) {
+          console.error('Error incrementing program day in Supabase:', e);
+        }
+      }
+
       navigation.navigate('Home', { session });
+
     } catch (err: any) {
       console.error('Error saving workout:', err);
       Alert.alert('Save Error', err.message || 'Failed to save workout session.');

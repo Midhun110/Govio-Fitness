@@ -21,6 +21,8 @@ import { supabase } from '../lib/supabase';
 import { MOCK_WORKOUTS } from './HomeScreen';
 import { MOCK_EXERCISES, Exercise } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
+import { getUserClass, getExercisesForClass } from '../utils/exerciseLibrary';
+import * as SecureStore from 'expo-secure-store';
 
 type LogWorkoutScreenRouteProp = RouteProp<RootStackParamList, 'LogWorkout'>;
 
@@ -75,28 +77,63 @@ export default function LogWorkoutScreen({ route }: LogWorkoutScreenProps) {
   const timerIntervalRef = useRef<any>(null);
 
   const fetchExercises = async () => {
+    let activeProfile: any = null;
+    
+    // Fetch profile first
+    if (user.id === 'mock-user-id-12345') {
+      try {
+        const cached = Platform.OS === 'web'
+          ? window.localStorage.getItem('govio_pending_onboarding')
+          : await SecureStore.getItemAsync('govio_pending_onboarding');
+        if (cached) {
+          activeProfile = JSON.parse(cached);
+        } else {
+          activeProfile = { training_environment: 'home', home_equipment_level: 'some' };
+        }
+      } catch (e) {
+        console.error(e);
+        activeProfile = { training_environment: 'home', home_equipment_level: 'some' };
+      }
+    } else {
+      try {
+        const { data: profileData, error: profileErr } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (profileData && !profileErr) {
+          activeProfile = profileData;
+        }
+      } catch (err) {
+        console.error('Error fetching profile in LogWorkoutScreen:', err);
+      }
+    }
+
+    let rawList: any[] = [];
     if (user.id === 'mock-user-id-12345') {
       const customs = await getLocalCustomExercises();
-      setExercisesList([...MOCK_EXERCISES, ...customs]);
-      setLoading(false);
-      return;
+      rawList = [...MOCK_EXERCISES, ...customs];
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('exercises')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        rawList = data || [];
+      } catch (err) {
+        console.error('Error fetching exercises:', err);
+        const customs = await getLocalCustomExercises();
+        rawList = [...MOCK_EXERCISES, ...customs];
+      }
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setExercisesList(data || []);
-    } catch (err) {
-      console.error('Error fetching exercises:', err);
-      const customs = await getLocalCustomExercises();
-      setExercisesList([...MOCK_EXERCISES, ...customs]); // Fallback to mocks
-    } finally {
-      setLoading(false);
-    }
+    // Apply class filtering
+    const userClass = getUserClass(activeProfile);
+    const classExercises = getExercisesForClass(userClass, rawList, activeProfile);
+    setExercisesList(classExercises);
+    setLoading(false);
   };
 
   const fetchExerciseHistory = async (exerciseId: string, index: number) => {
