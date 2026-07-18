@@ -966,10 +966,16 @@ export default function ActiveWorkoutScreen() {
       MOCK_WORKOUTS.unshift(newWorkout);
 
       try {
-        const localData = await SecureStore.getItemAsync('govio_workouts');
+        const localData = Platform.OS === 'web'
+          ? window.localStorage.getItem('govio_workouts')
+          : await SecureStore.getItemAsync('govio_workouts');
         const parsed = localData ? JSON.parse(localData) : [];
         parsed.unshift(newWorkout);
-        await SecureStore.setItemAsync('govio_workouts', JSON.stringify(parsed));
+        if (Platform.OS === 'web') {
+          window.localStorage.setItem('govio_workouts', JSON.stringify(parsed));
+        } else {
+          await SecureStore.setItemAsync('govio_workouts', JSON.stringify(parsed));
+        }
       } catch (e) {
         console.error('Error saving workout to SecureStore:', e);
       }

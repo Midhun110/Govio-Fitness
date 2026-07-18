@@ -74,19 +74,8 @@ export default function HomeRouterScreen() {
     );
   }
 
-  // Personalization logic:
-  // If the user selects Beginner + Home + No Equipment, route them to the new beginner dashboard.
-  // Otherwise, route them to the standard dashboard.
-  const isBeginnerHomeNoEquip = 
-    profile &&
-    profile.experience_level === 'beginner' &&
-    profile.training_environment === 'home' &&
-    profile.home_equipment_level === 'none';
-
-  if (isBeginnerHomeNoEquip) {
-    return <BeginnerHomeScreen onProfileUpdate={checkPersonalization} />;
-  }
-
+  // Always route to the standard HomeScreen to keep the dashboard UI identical.
+  // The exercise library and generated workouts will dynamically adjust based on user profile.
   return <HomeScreen route={route} onProfileUpdate={checkPersonalization} />;
 }
 

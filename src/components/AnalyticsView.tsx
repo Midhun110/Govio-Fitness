@@ -63,7 +63,9 @@ export default function AnalyticsView({ session }: AnalyticsViewProps) {
   // Load local mock workouts helper
   const SecureStoreGet = async () => {
     try {
-      const local = await SecureStore.getItemAsync('govio_workouts');
+      const local = Platform.OS === 'web'
+        ? window.localStorage.getItem('govio_workouts')
+        : await SecureStore.getItemAsync('govio_workouts');
       return local ? JSON.parse(local) : null;
     } catch (e) {
       return null;

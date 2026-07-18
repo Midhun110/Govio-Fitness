@@ -1156,7 +1156,9 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
 
     if (!user || user.id === 'mock-user-id-12345') {
       try {
-        const localData = await SecureStore.getItemAsync('govio_workouts');
+        const localData = Platform.OS === 'web'
+          ? window.localStorage.getItem('govio_workouts')
+          : await SecureStore.getItemAsync('govio_workouts');
         if (localData) {
           const parsed = JSON.parse(localData);
           parsed.forEach((w: any) => {

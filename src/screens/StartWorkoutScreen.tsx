@@ -686,7 +686,9 @@ export default function StartWorkoutScreen() {
       rawList = [...MOCK_EXERCISES, ...customs];
       
       try {
-        const localData = await SecureStore.getItemAsync('govio_workouts');
+        const localData = Platform.OS === 'web'
+          ? window.localStorage.getItem('govio_workouts')
+          : await SecureStore.getItemAsync('govio_workouts');
         const workoutsList = localData ? JSON.parse(localData) : [];
         const suggestions = calculateProgressionSuggestions(workoutsList);
         setProgressionSuggestions(suggestions);
