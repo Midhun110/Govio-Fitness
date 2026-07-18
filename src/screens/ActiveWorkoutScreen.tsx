@@ -478,7 +478,7 @@ export default function ActiveWorkoutScreen() {
               exercise: ex,
               sets: [],
               inputWeight: '60',
-              inputReps: '10',
+              inputReps: (ex as any).recommendedReps ? String((ex as any).recommendedReps) : '10',
               restTimeSeconds: 90,
             }));
             setActiveExercises(initialStates);
@@ -489,7 +489,7 @@ export default function ActiveWorkoutScreen() {
             exercise: ex,
             sets: [],
             inputWeight: '60',
-            inputReps: '10',
+            inputReps: (ex as any).recommendedReps ? String((ex as any).recommendedReps) : '10',
             restTimeSeconds: 90,
           }));
           setActiveExercises(initialStates);
@@ -499,7 +499,7 @@ export default function ActiveWorkoutScreen() {
           exercise: ex,
           sets: [],
           inputWeight: '60',
-          inputReps: '10',
+          inputReps: (ex as any).recommendedReps ? String((ex as any).recommendedReps) : '10',
           restTimeSeconds: 90,
         }));
         setActiveExercises(initialStates);
@@ -1474,6 +1474,12 @@ export default function ActiveWorkoutScreen() {
               <Text style={styles.activeExMuscle}>
                 {ae.exercise.primary_muscle || ae.exercise.muscle_group.toUpperCase()}
               </Text>
+              {((ae.exercise as any).recommendedSets || (ae.exercise as any).recommendedReps) ? (
+                <Text style={{ color: '#D4FF13', fontSize: 13, marginTop: 4, fontFamily: 'System', fontWeight: '600' }}>
+                  🎯 Target: {(ae.exercise as any).recommendedSets} sets x {(ae.exercise as any).recommendedReps} reps
+                  {(ae.exercise as any).progressionNote ? ` (${(ae.exercise as any).progressionNote})` : ''}
+                </Text>
+              ) : null}
             </View>
             <TouchableOpacity style={styles.guideBtn} onPress={() => setShowGuideModal(true)}>
               <Text style={styles.guideBtnText}>VIEW GUIDE</Text>

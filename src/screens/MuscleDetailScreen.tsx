@@ -9,6 +9,7 @@ import { MOCK_EXERCISES, getExerciseImageSource, getLocalEquipmentRequiredTag } 
 import { getLocalCustomExercises, addLocalCustomExercise } from '../utils/customExercises';
 import { triggerSuccessHaptic } from '../utils/haptics';
 import * as SecureStore from 'expo-secure-store';
+import { getIsolatedLibraryForUser } from '../utils/exerciseLibrary';
 
 type MuscleDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -60,86 +61,92 @@ export default function MuscleDetailScreen() {
 
 
   const fetchExercises = async () => {
-    if (!user || user.id === 'mock-user-id-12345') {
-      const filtered = MOCK_EXERCISES.filter(ex => {
-        const cat = muscleGroup.toLowerCase();
-        const muscle = ex.muscle_group.toLowerCase();
-        
-        if (cat === 'chest') return muscle === 'chest';
-        if (cat === 'back') return muscle === 'back';
-        if (cat === 'shoulders') return muscle === 'shoulders';
-        if (cat === 'legs') return muscle === 'legs';
-        if (cat === 'biceps') return muscle === 'biceps';
-        if (cat === 'triceps') return muscle === 'triceps';
-        if (cat === 'forearms') return muscle === 'forearms';
-        if (cat === 'abs') return muscle === 'abs';
-        return muscle === cat;
-      });
-
-      // Merge with local custom exercises
-      const localCustoms = await getLocalCustomExercises();
-      const filteredLocal = localCustoms.filter(ex => {
-        const cat = muscleGroup.toLowerCase();
-        const muscle = ex.muscle_group.toLowerCase();
-        
-        if (cat === 'chest') return muscle === 'chest';
-        if (cat === 'back') return muscle === 'back';
-        if (cat === 'shoulders') return muscle === 'shoulders';
-        if (cat === 'legs') return muscle === 'legs';
-        if (cat === 'biceps') return muscle === 'biceps';
-        if (cat === 'triceps') return muscle === 'triceps';
-        if (cat === 'forearms') return muscle === 'forearms';
-        if (cat === 'abs') return muscle === 'abs';
-        return muscle === cat;
-      });
-
-      setExercises([...filtered, ...filteredLocal]);
-      setLoading(false);
-      return;
+    // 1. Resolve profile to avoid race condition
+    let activeProfile = profile;
+    if (!activeProfile && user) {
+      if (user.id === 'mock-user-id-12345') {
+        try {
+          const cached = Platform.OS === 'web'
+            ? window.localStorage.getItem('govio_pending_onboarding')
+            : await SecureStore.getItemAsync('govio_pending_onboarding');
+          if (cached) {
+            activeProfile = JSON.parse(cached);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        if (!activeProfile) {
+          activeProfile = { training_environment: 'home', home_equipment_level: 'some' };
+        }
+      } else {
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          if (data && !error) {
+            activeProfile = data;
+          }
+        } catch (err) {
+          console.error('Error fetching profile in MuscleDetailScreen:', err);
+        }
+      }
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('exercises')
-        .select('*')
-        .order('name', { ascending: true });
+    // 2. Fetch raw list of exercises
+    let rawList: Exercise[] = [];
+    if (!user || user.id === 'mock-user-id-12345') {
+      const customs = await getLocalCustomExercises();
+      rawList = [...MOCK_EXERCISES, ...customs];
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('exercises')
+          .select('*')
+          .order('name', { ascending: true });
 
-      if (error) throw error;
-
-      if (data) {
-        const mappedData = data.map((ex: any) => ({
+        if (error) throw error;
+        rawList = (data || []).map((ex: any) => ({
           ...ex,
           equipment_required: ex.equipment_required || getLocalEquipmentRequiredTag(ex.name)
         }));
-        const filtered = mappedData.filter((ex: any) => {
-          const cat = muscleGroup.toLowerCase();
-          const muscle = ex.muscle_group.toLowerCase();
-          
-          if (cat === 'chest') return muscle === 'chest';
-          if (cat === 'back') return muscle === 'back';
-          if (cat === 'shoulders') return muscle === 'shoulders';
-          if (cat === 'legs') return muscle === 'legs';
-          if (cat === 'biceps') {
-            return muscle === 'biceps' || (muscle === 'arms' && ex.name.toLowerCase().includes('bicep'));
-          }
-          if (cat === 'triceps') {
-            return muscle === 'triceps' || (muscle === 'arms' && ex.name.toLowerCase().includes('tricep'));
-          }
-          if (cat === 'forearms') {
-            return muscle === 'forearms' || (muscle === 'arms' && !ex.name.toLowerCase().includes('bicep') && !ex.name.toLowerCase().includes('tricep'));
-          }
-          if (cat === 'abs') {
-            return muscle === 'abs' || muscle === 'core';
-          }
-          return muscle === cat;
-        });
-        setExercises(filtered);
+      } catch (err) {
+        console.error('Error fetching exercises:', err);
+        const customs = await getLocalCustomExercises();
+        rawList = [...MOCK_EXERCISES, ...customs];
       }
-    } catch (err) {
-      console.error('Error fetching exercises:', err);
-    } finally {
-      setLoading(false);
     }
+
+    // 3. Isolate the list strictly by user profile environment
+    const isolated = getIsolatedLibraryForUser(rawList, activeProfile);
+
+    // 4. Filter by muscle group
+    const filtered = isolated.filter(ex => {
+      const cat = muscleGroup.toLowerCase();
+      const muscle = ex.muscle_group.toLowerCase();
+      
+      if (cat === 'chest') return muscle === 'chest';
+      if (cat === 'back') return muscle === 'back';
+      if (cat === 'shoulders') return muscle === 'shoulders';
+      if (cat === 'legs') return muscle === 'legs';
+      if (cat === 'biceps') {
+        return muscle === 'biceps' || (muscle === 'arms' && ex.name.toLowerCase().includes('bicep'));
+      }
+      if (cat === 'triceps') {
+        return muscle === 'triceps' || (muscle === 'arms' && ex.name.toLowerCase().includes('tricep'));
+      }
+      if (cat === 'forearms') {
+        return muscle === 'forearms' || (muscle === 'arms' && !ex.name.toLowerCase().includes('bicep') && !ex.name.toLowerCase().includes('tricep'));
+      }
+      if (cat === 'abs') {
+        return muscle === 'abs' || muscle === 'core';
+      }
+      return muscle === cat;
+    });
+
+    setExercises(filtered);
+    setLoading(false);
   };
 
   const handleSaveExercise = async () => {

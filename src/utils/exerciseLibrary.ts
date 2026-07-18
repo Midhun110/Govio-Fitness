@@ -29,16 +29,62 @@ export interface EnrichedExercise extends Exercise {
 export function getUserClass(profile?: UserProfile | null): UserClass {
   if (!profile) return 'Gym Intermediate'; // Default fallback
   
-  // Detect Senior first (Age 51+)
-  const ageGroup = profile.classified_age_group;
+  // 1. Resolve Age Group
+  let ageGroup = profile.classified_age_group;
+  if (!ageGroup && profile.date_of_birth) {
+    const dob = new Date(profile.date_of_birth);
+    if (!isNaN(dob.getTime())) {
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+      if (age >= 51) {
+        ageGroup = 'Senior';
+      }
+    }
+  }
+
   if (ageGroup === 'Senior') {
     return 'Senior (51+)';
   }
   
-  const loc = profile.classified_location || 'Gym';
-  const exp = profile.classified_experience || 'Intermediate';
-  const equip = profile.classified_equipment || 'Full Gym Equipment';
-  
+  // 2. Resolve Environment/Location
+  let loc = 'Gym';
+  const rawLoc = (profile.classified_location || profile.training_environment || profile.preferred_workout_environment || 'gym').toLowerCase();
+  if (rawLoc.includes('home')) {
+    loc = 'Home';
+  } else if (rawLoc.includes('gym')) {
+    loc = 'Gym';
+  } else if (rawLoc.includes('calisthenics') || rawLoc.includes('outdoor')) {
+    loc = 'Home';
+  }
+
+  // 3. Resolve Experience
+  let exp = 'Intermediate';
+  const rawExp = (profile.classified_experience || profile.experience_level || 'intermediate').toLowerCase();
+  if (rawExp.includes('begin')) {
+    exp = 'Beginner';
+  } else if (rawExp.includes('adv')) {
+    exp = 'Advanced';
+  } else if (rawExp.includes('inter')) {
+    exp = 'Intermediate';
+  }
+
+  // 4. Resolve Equipment
+  let equip = 'Full Gym Equipment';
+  if (loc === 'Home') {
+    const rawEquip = (profile.classified_equipment || profile.home_equipment_level || 'some').toLowerCase();
+    if (rawEquip.includes('none') || rawEquip === 'none') {
+      equip = 'No Equipment';
+    } else if (rawEquip.includes('some') || rawEquip === 'some' || rawEquip.includes('basic')) {
+      equip = 'Basic Home Equipment';
+    } else if (rawEquip.includes('full') || rawEquip === 'full' || rawEquip.includes('gym')) {
+      equip = 'Full Gym Equipment';
+    }
+  }
+
   if (loc === 'Gym') {
     if (exp === 'Beginner') return 'Gym Beginner';
     if (exp === 'Advanced') return 'Gym Advanced';
@@ -236,6 +282,42 @@ export function enrichExercise(ex: Exercise): EnrichedExercise {
 }
 
 /**
+ * Isolates the master exercises pool based strictly on the user's environment selection.
+ * - Gym users ONLY see original Gym exercises (no ex-h- exercises).
+ * - Home users ONLY see Home-friendly exercises (ex-h- exercises plus custom exercises).
+ */
+export function getIsolatedLibraryForUser(
+  exercises: Exercise[],
+  profile?: UserProfile | null
+): Exercise[] {
+  if (!profile) return exercises.filter(ex => !ex.id.startsWith('ex-h-')); // Default to gym (no ex-h-)
+  
+  // Resolve environment/location (same logic as getUserClass)
+  let loc = 'Gym';
+  const rawLoc = (profile.classified_location || profile.training_environment || profile.preferred_workout_environment || 'gym').toLowerCase();
+  if (rawLoc.includes('home')) {
+    loc = 'Home';
+  } else if (rawLoc.includes('gym')) {
+    loc = 'Gym';
+  } else if (rawLoc.includes('calisthenics') || rawLoc.includes('outdoor')) {
+    loc = 'Home';
+  }
+
+  return exercises.filter((ex) => {
+    // Custom exercises created by the user should always be kept
+    if (ex.is_custom) return true;
+
+    if (loc === 'Gym') {
+      // Exclude home-specific exercises
+      return !ex.id.startsWith('ex-h-');
+    } else {
+      // Home user: ONLY allow ex-h- exercises
+      return ex.id.startsWith('ex-h-');
+    }
+  });
+}
+
+/**
  * Filter exercises dynamically according to assigned UserClass base rules
  */
 export function getExercisesForClass(
@@ -243,7 +325,9 @@ export function getExercisesForClass(
   exercises: Exercise[],
   profile?: UserProfile | null
 ): Exercise[] {
-  const enriched = exercises.map(enrichExercise);
+  // First isolate the library strictly by environment to prevent any mixing
+  const isolated = getIsolatedLibraryForUser(exercises, profile);
+  const enriched = isolated.map(enrichExercise);
   
   return enriched.filter((ex) => {
     const meta = ex.metadata;
@@ -283,7 +367,16 @@ export function getExercisesForClass(
     if (userClass.startsWith('Home')) {
       if (!meta.environments.includes('Home')) return false;
       
-      const equip = profile?.classified_equipment || 'No Equipment';
+      let equip = 'No Equipment';
+      const rawEquip = (profile?.classified_equipment || profile?.home_equipment_level || 'none').toLowerCase();
+      if (rawEquip.includes('none') || rawEquip === 'none') {
+        equip = 'No Equipment';
+      } else if (rawEquip.includes('some') || rawEquip === 'some' || rawEquip.includes('basic')) {
+        equip = 'Basic Home Equipment';
+      } else if (rawEquip.includes('full') || rawEquip === 'full' || rawEquip.includes('gym')) {
+        equip = 'Full Gym Equipment';
+      }
+
       if (userClass === 'Home Beginner (No Equipment)') {
         return meta.difficulty === 'Beginner' && meta.equipment_types.includes('None');
       }

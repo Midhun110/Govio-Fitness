@@ -26,7 +26,7 @@ import { supabase } from '../lib/supabase';
 import { calculateNutritionMetrics, NutritionMetrics, UserProfile, isExerciseMatch, filterExercisesForUser, normalizeFitnessGoal, normalizeExperienceLevel, classifyUserProfile } from '../utils/calculations';
 import { getDashboardFeatures } from '../utils/dashboardFeatures';
 import { POPULAR_WORKOUTS, Workout } from '../data/workoutsData';
-import { getUserClass, getExercisesForClass } from '../utils/exerciseLibrary';
+import { getUserClass, getExercisesForClass, getIsolatedLibraryForUser } from '../utils/exerciseLibrary';
 import AnalyticsView from '../components/AnalyticsView';
 import { MOCK_EXERCISES, getExerciseImageSource, getLocalEquipmentRequiredTag } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
@@ -448,21 +448,40 @@ const isWorkoutSuitableForUser = (
   environment?: 'gym' | 'home' | 'outdoor' | 'calisthenics',
   homeEquipmentLevel?: 'none' | 'some' | 'full' | null
 ): boolean => {
-  if (!environment || environment === 'gym') {
-    return true;
+  const env = environment?.toLowerCase();
+  
+  if (!env || env === 'gym') {
+    // Gym -> Original 5 gym workouts only
+    const gymAllowedIds = ['popular-1', 'popular-2', 'popular-3', 'popular-4', 'popular-5'];
+    return gymAllowedIds.includes(workout.id);
   }
-  let matchingCount = 0;
-  workout.exercisesList.forEach((wex) => {
-    const exerciseDef = MOCK_EXERCISES.find(e => e.id === wex.id) || MOCK_EXERCISES.find(e => e.name.toLowerCase() === wex.name.toLowerCase());
-    if (exerciseDef) {
-      if (isExerciseMatch(exerciseDef, environment, homeEquipmentLevel)) {
+
+  // Home -> Home workout library only
+  if (env === 'home' || env === 'calisthenics' || env === 'outdoor') {
+    // Must be marked as a home workout or popular workout that is home-friendly
+    if (workout.id.startsWith('gym-')) return false;
+
+    // Check if the workout is explicitly marked for home
+    if (!workout.workout_locations.includes('home')) return false;
+
+    // Check if the individual exercises in the workout are suitable for the home equipment level
+    let matchingCount = 0;
+    workout.exercisesList.forEach((wex) => {
+      // Find the exercise definition
+      const exerciseDef = MOCK_EXERCISES.find(e => e.id === wex.id) || MOCK_EXERCISES.find(e => e.name.toLowerCase() === wex.name.toLowerCase());
+      if (exerciseDef) {
+        if (isExerciseMatch(exerciseDef, 'home', homeEquipmentLevel)) {
+          matchingCount++;
+        }
+      } else {
         matchingCount++;
       }
-    } else {
-      matchingCount++;
-    }
-  });
-  return (matchingCount / workout.exercisesList.length) >= 0.5;
+    });
+
+    return (matchingCount / workout.exercisesList.length) >= 0.5;
+  }
+
+  return false;
 };
 
 
@@ -2042,10 +2061,10 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
   const categories = ['All', 'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'];
 
   const getFilteredExercisesRaw = (applyEquipmentFilter: boolean) => {
-    let baseList = exercisesList;
+    let baseList = getIsolatedLibraryForUser(exercisesList, profile);
     if (applyEquipmentFilter) {
       const userClass = getUserClass(profile);
-      baseList = getExercisesForClass(userClass, exercisesList, profile);
+      baseList = getExercisesForClass(userClass, baseList, profile);
     }
     
     return baseList.filter((e) => {

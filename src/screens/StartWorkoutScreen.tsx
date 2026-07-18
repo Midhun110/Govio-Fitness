@@ -26,7 +26,7 @@ import { getLocalCustomExercises } from '../utils/customExercises';
 import { Routine, getLocalRoutines, deleteLocalRoutine, renameLocalRoutine } from '../utils/customRoutines';
 import * as SecureStore from 'expo-secure-store';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { getProgramDayDetails, autoAdvanceProgramDay, getExercisesForFocus, WEEKDAYS } from '../utils/program';
+import { getProgramDayDetails, autoAdvanceProgramDay, getExercisesForFocus, WEEKDAYS, selectExercisesForMuscle } from '../utils/program';
 import { getUserClass, getExercisesForClass } from '../utils/exerciseLibrary';
 
 
@@ -906,17 +906,16 @@ export default function StartWorkoutScreen() {
         });
       };
 
-      const filtered = getSelectedFiltered(true);
+      let filtered = getSelectedFiltered(true);
       if (filtered.length < 2) {
         const unfiltered = getSelectedFiltered(false);
         if (unfiltered.length > 0) {
-          selectedExercises = unfiltered;
-        } else {
-          selectedExercises = filtered;
+          filtered = unfiltered;
         }
-      } else {
-        selectedExercises = filtered;
       }
+
+      const workoutsCount = (profile?.program_workouts_completed || 0) + 1;
+      selectedExercises = selectExercisesForMuscle(selectedMuscle, filtered, profile || {}, workoutsCount);
 
       workoutName = `${selectedMuscle} Split`;
     } else {
