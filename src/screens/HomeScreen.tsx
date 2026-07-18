@@ -758,6 +758,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
   const [editDays, setEditDays] = useState<string[]>(['Mon', 'Tue', 'Thu', 'Fri']);
   const [editEnv, setEditEnv] = useState<'home' | 'gym' | 'outdoor' | 'calisthenics'>('gym');
   const [editEquip, setEditEquip] = useState<'none' | 'some' | 'full'>('none');
+  const [editDob, setEditDob] = useState('');
 
 
 
@@ -1235,6 +1236,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
       setEditDays(activeMockProfile.training_days || ['Mon', 'Tue', 'Thu', 'Fri']);
       setEditEnv(activeMockProfile.training_environment || 'gym');
       setEditEquip(activeMockProfile.home_equipment_level || 'none');
+      setEditDob(activeMockProfile.date_of_birth || '1995-01-01');
 
 
 
@@ -1372,6 +1374,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
       setEditDays(profileData.training_days || ['Mon', 'Tue', 'Thu', 'Fri']);
       setEditEnv(profileData.training_environment || 'gym');
       setEditEquip(profileData.home_equipment_level || 'none');
+      setEditDob(profileData.date_of_birth || '1995-01-01');
 
 
 
@@ -1783,6 +1786,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
             training_days: editDays,
             training_environment: editEnv,
             home_equipment_level: editEnv === 'home' ? editEquip : 'none',
+            date_of_birth: editDob,
           };
           const classifications = classifyUserProfile(updatedProfile);
           const finalProfile = { ...updatedProfile, ...classifications };
@@ -1833,6 +1837,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
           training_days: editDays,
           training_environment: editEnv,
           home_equipment_level: editEnv === 'home' ? editEquip : 'none',
+          date_of_birth: editDob,
         })
         .eq('id', user.id);
 
@@ -1852,6 +1857,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
           training_days: editDays,
           training_environment: editEnv,
           home_equipment_level: editEnv === 'home' ? editEquip : 'none',
+          date_of_birth: editDob,
         };
         const classifications = classifyUserProfile(updatedProfile);
         const finalProfile = { ...updatedProfile, ...classifications };
@@ -3641,6 +3647,18 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
                   placeholderTextColor="#7A7A7A"
                   value={editFullName}
                   onChangeText={setEditFullName}
+                />
+              </View>
+
+              <View style={styles.modalFormGroup}>
+                <Text style={styles.formLabel}>DATE OF BIRTH (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="YYYY-MM-DD (e.g. 1995-05-15)"
+                  placeholderTextColor="#7A7A7A"
+                  value={editDob}
+                  onChangeText={setEditDob}
+                  maxLength={10}
                 />
               </View>
 
