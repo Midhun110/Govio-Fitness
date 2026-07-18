@@ -864,24 +864,24 @@ export const MOCK_EXERCISES: Exercise[] = [
   },
   {
     "id": "ex-h-bicep-1",
-    "name": "Dumbbell Hammer Curl",
-    "equipment_required": "dumbbell",
+    "name": "Hammer Curl (Brick, Wood, or Water Bottle)",
+    "equipment_required": "bodyweight",
     "muscle_group": "Biceps",
     "primary_muscle": "Brachialis / Biceps",
     "secondary_muscles": [
       "Forearms"
     ],
     "instructions": [
-      "Hold dumbbells palms facing in.",
-      "Curl weights up keeping palms facing.",
+      "Hold a brick, wood piece, or filled water bottle in each hand, palms facing in.",
+      "Curl the weights up by bending at the elbows while keeping palms facing in.",
       "Lower slowly."
     ],
     "form_tips": [
-      "Keep elbows still.",
-      "Squeeze at top."
+      "Keep elbows still at your sides.",
+      "Squeeze your biceps at the top."
     ],
     "common_mistakes": [
-      "Swinging shoulders."
+      "Swinging shoulders or back."
     ],
     "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
   },
@@ -932,24 +932,24 @@ export const MOCK_EXERCISES: Exercise[] = [
   },
   {
     "id": "ex-h-bicep-4",
-    "name": "Dumbbell Bicep Curl",
-    "equipment_required": "dumbbell",
+    "name": "Bicep Curl (Brick, Wood, or Water Bottle)",
+    "equipment_required": "bodyweight",
     "muscle_group": "Biceps",
     "primary_muscle": "Biceps Brachii",
     "secondary_muscles": [
       "Forearms"
     ],
     "instructions": [
-      "Stand holding dumbbells palms out.",
-      "Curl up toward shoulders.",
+      "Stand holding a brick, wood piece, or filled water bottle in each hand, palms out.",
+      "Curl the objects up toward your shoulders, keeping upper arms still.",
       "Lower slowly."
     ],
     "form_tips": [
-      "Elbows pinned to sides.",
-      "Keep wrists straight."
+      "Keep elbows pinned to your sides.",
+      "Keep your wrists straight and locked."
     ],
     "common_mistakes": [
-      "Swinging torso."
+      "Swinging your body to raise the weights."
     ],
     "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
   },
