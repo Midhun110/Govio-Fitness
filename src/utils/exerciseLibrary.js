@@ -91,7 +91,8 @@ function getUserClass(profile) {
  * Evaluates target requirements and yields matching properties.
  */
 function enrichExercise(ex) {
-    const eqReq = ex.equipment_required ? ex.equipment_required.toLowerCase() : 'bodyweight';
+    const isSeniorEx = ex.id.includes('senior');
+    const eqReq = isSeniorEx ? 'bodyweight' : (ex.equipment_required ? ex.equipment_required.toLowerCase() : 'bodyweight');
     let eqType = 'None';
     let envs = ['Gym', 'Home'];
     if (eqReq === 'bodyweight') {
@@ -199,6 +200,9 @@ function enrichExercise(ex) {
         nameLower.includes('handstand')) {
         difficulty = 'Advanced';
     }
+    if (isSeniorEx) {
+        difficulty = 'Beginner';
+    }
     // Determine age groups
     let ageGroups = ['Teen', 'Young Adult', 'Adult', 'Senior'];
     if (difficulty === 'Advanced') {
@@ -208,6 +212,9 @@ function enrichExercise(ex) {
         nameLower.includes('burpee') ||
         nameLower.includes('plyo')) {
         ageGroups = ['Teen', 'Young Adult', 'Adult'];
+    }
+    if (isSeniorEx) {
+        ageGroups = ['Teen', 'Young Adult', 'Adult', 'Senior'];
     }
     // Determine suitable goals
     let suitableGoals = ['Stay Fit'];

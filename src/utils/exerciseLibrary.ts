@@ -105,7 +105,8 @@ export function getUserClass(profile?: UserProfile | null): UserClass {
  * Evaluates target requirements and yields matching properties.
  */
 export function enrichExercise(ex: Exercise): EnrichedExercise {
-  const eqReq = ex.equipment_required ? ex.equipment_required.toLowerCase() : 'bodyweight';
+  const isSeniorEx = ex.id.includes('senior');
+  const eqReq = isSeniorEx ? 'bodyweight' : (ex.equipment_required ? ex.equipment_required.toLowerCase() : 'bodyweight');
   let eqType: 'None' | 'Dumbbells' | 'Bands' | 'Barbell' | 'Machines' = 'None';
   let envs: ('Gym' | 'Home')[] = ['Gym', 'Home'];
 
@@ -215,6 +216,10 @@ export function enrichExercise(ex: Exercise): EnrichedExercise {
     difficulty = 'Advanced';
   }
 
+  if (isSeniorEx) {
+    difficulty = 'Beginner';
+  }
+
   // Determine age groups
   let ageGroups: ('Teen' | 'Young Adult' | 'Adult' | 'Senior')[] = ['Teen', 'Young Adult', 'Adult', 'Senior'];
   if (difficulty === 'Advanced') {
@@ -225,6 +230,10 @@ export function enrichExercise(ex: Exercise): EnrichedExercise {
     nameLower.includes('plyo')
   ) {
     ageGroups = ['Teen', 'Young Adult', 'Adult'];
+  }
+
+  if (isSeniorEx) {
+    ageGroups = ['Teen', 'Young Adult', 'Adult', 'Senior'];
   }
 
   // Determine suitable goals

@@ -1872,6 +1872,112 @@ export const MOCK_EXERCISES: Exercise[] = [
       "Using shoulder shrug."
     ],
     "image_url": "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=600"
+  },
+  {
+    "id": "ex-h-senior-1",
+    "name": "Jumping Jacks (Gentle Cardio)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Abs",
+    "primary_muscle": "Heart / Full Body",
+    "secondary_muscles": ["Calves", "Shoulders"],
+    "instructions": [
+      "Stand with feet together and arms at your sides.",
+      "Slightly bend knees, jump feet out to the sides while raising arms overhead.",
+      "Jump back to the starting position."
+    ],
+    "form_tips": [
+      "Land softly on the balls of your feet.",
+      "Keep arms slightly bent if shoulder joints are stiff."
+    ],
+    "common_mistakes": [
+      "Landing heavily on heels."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=600"
+  },
+  {
+    "id": "ex-h-senior-2",
+    "name": "Wall Push-Up (Gentle Chest & Arms)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Chest",
+    "primary_muscle": "Pectoralis Major",
+    "secondary_muscles": ["Triceps", "Anterior Deltoids"],
+    "instructions": [
+      "Stand facing a wall, about arm's length away.",
+      "Place your hands flat on the wall at shoulder height and shoulder-width apart.",
+      "Slowly bend your elbows to bring your chest close to the wall.",
+      "Push back to return to the starting position."
+    ],
+    "form_tips": [
+      "Keep your body in a straight line from head to heels.",
+      "Do not round your shoulders."
+    ],
+    "common_mistakes": [
+      "Letting your hips sag toward the wall."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?q=80&w=600"
+  },
+  {
+    "id": "ex-h-senior-3",
+    "name": "Chair Squat (Gentle Leg Strength)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Quadriceps",
+    "secondary_muscles": ["Glutes", "Hamstrings"],
+    "instructions": [
+      "Stand tall in front of a sturdy chair, feet shoulder-width apart.",
+      "Slowly lower your hips back and down to sit lightly on the chair.",
+      "Press through your heels to stand back up."
+    ],
+    "form_tips": [
+      "Keep your chest lifted as you descend.",
+      "Do not rush the movement; keep it controlled."
+    ],
+    "common_mistakes": [
+      "Letting knees cave inward."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
+  },
+  {
+    "id": "ex-h-senior-4",
+    "name": "Standing Arm Circles (Shoulder Mobility)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Shoulders",
+    "primary_muscle": "Deltoids",
+    "secondary_muscles": ["Upper Back"],
+    "instructions": [
+      "Stand tall with feet shoulder-width apart.",
+      "Extend your arms out to the sides at shoulder height, palms down.",
+      "Perform slow, small forward circles, then reverse direction after 10-15 seconds."
+    ],
+    "form_tips": [
+      "Keep your shoulders relaxed, not shrugged.",
+      "Keep circles small and controlled."
+    ],
+    "common_mistakes": [
+      "Flailing arms or moving too fast."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?q=80&w=600"
+  },
+  {
+    "id": "ex-h-senior-7",
+    "name": "Glute Bridge (Gentle Glute Strength)",
+    "equipment_required": "bodyweight",
+    "muscle_group": "Legs",
+    "primary_muscle": "Gluteus Maximus",
+    "secondary_muscles": ["Hamstrings", "Core"],
+    "instructions": [
+      "Lie on your back with knees bent and feet flat on the floor.",
+      "Lift your hips off the floor until your knees, hips, and shoulders form a straight line.",
+      "Pause for a moment, then slowly lower back down."
+    ],
+    "form_tips": [
+      "Squeeze your glutes at the top.",
+      "Keep your neck relaxed."
+    ],
+    "common_mistakes": [
+      "Arching lower back too excessively."
+    ],
+    "image_url": "https://images.unsplash.com/photo-1574680096145-d05b474e2155?q=80&w=600"
   }
 ];
 

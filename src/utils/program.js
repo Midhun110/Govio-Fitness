@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WEEKDAY_MAP = exports.WEEKDAYS = void 0;
+exports.isSpecialSeniorProfile = isSpecialSeniorProfile;
 exports.getDayOfWeekString = getDayOfWeekString;
 exports.getCalendarDateForDay = getCalendarDateForDay;
 exports.getSplitPattern = getSplitPattern;
@@ -11,6 +12,30 @@ exports.getTargetExerciseCount = getTargetExerciseCount;
 exports.selectExercisesForMuscle = selectExercisesForMuscle;
 exports.getExercisesForFocus = getExercisesForFocus;
 const exerciseLibrary_1 = require("./exerciseLibrary");
+function getAgeForProfile(profile) {
+    if (!profile.date_of_birth)
+        return 25;
+    const dob = new Date(profile.date_of_birth);
+    if (isNaN(dob.getTime()))
+        return 25;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+    return age;
+}
+function isSpecialSeniorProfile(profile) {
+    const age = getAgeForProfile(profile);
+    const env = (profile.training_environment || '').toLowerCase();
+    const exp = (profile.experience_level || '').toLowerCase();
+    const equip = (profile.home_equipment_level || '').toLowerCase();
+    return (age >= 40 &&
+        env === 'home' &&
+        exp.includes('begin') &&
+        (equip === 'none' || equip.includes('none')));
+}
 exports.WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 exports.WEEKDAY_MAP = {
     0: 'Sun',
@@ -96,7 +121,10 @@ function getProgramDayDetails(dayNumber, profile) {
         workoutIndex = Math.max(0, completedCount - workoutDaysCount);
     }
     const pattern = getSplitPattern(frequency, experienceLevel);
-    const focus = pattern[workoutIndex % pattern.length];
+    let focus = pattern[workoutIndex % pattern.length];
+    if (isSpecialSeniorProfile(profile)) {
+        focus = 'Full Body';
+    }
     return { dayNumber, dateStr, weekday, isRest, focus };
 }
 // Auto-advances program day past rest days if calendar time has moved forward
@@ -393,6 +421,63 @@ function selectExercisesForMuscle(muscleGroup, pool, profile, dayOrWorkoutsCount
     });
 }
 function getExercisesForFocus(focus, exercisesList, profile, dayNumber) {
+    if (isSpecialSeniorProfile(profile)) {
+        const seniorExIds = [
+            'ex-h-senior-1', // Jumping Jacks (Gentle Cardio)
+            'ex-h-senior-2', // Wall Push-Up (Gentle Chest & Arms)
+            'ex-h-senior-3', // Chair Squat (Gentle Leg Strength)
+            'ex-h-senior-4', // Standing Arm Circles (Shoulder Mobility)
+            'ex-h-senior-7', // Glute Bridge (Gentle Glute Strength)
+            'ex-h-abs-1' // Plank
+        ];
+        const seniorPool = exercisesList.filter(ex => seniorExIds.includes(ex.id));
+        // Sort to logical sequence: Warmup -> Strength -> Core
+        seniorPool.sort((a, b) => {
+            const idxA = seniorExIds.indexOf(a.id);
+            const idxB = seniorExIds.indexOf(b.id);
+            return idxA - idxB;
+        });
+        // Calculate progression cycle within 4-week blocks
+        const week = Math.floor((dayNumber - 1) / 7) + 1;
+        const cycleWeek = ((week - 1) % 4) + 1;
+        let sets = 2;
+        let reps = 10;
+        let progressionNote = '';
+        if (cycleWeek === 1) {
+            sets = 2;
+            reps = 10;
+            progressionNote = 'Week 1 Base';
+        }
+        else if (cycleWeek === 2) {
+            sets = 2;
+            reps = 12;
+            progressionNote = 'Reps Progression (+2 reps)';
+        }
+        else if (cycleWeek === 3) {
+            sets = 3;
+            reps = 10;
+            progressionNote = 'Volume Progression (+1 set)';
+        }
+        else {
+            sets = 3;
+            reps = 12;
+            progressionNote = 'Max Intensity (+1 set, +2 reps)';
+        }
+        return seniorPool.map(ex => {
+            let displayReps = reps;
+            let displayNote = progressionNote;
+            if (ex.id === 'ex-h-abs-1') {
+                displayReps = cycleWeek <= 2 ? 15 : 20;
+                displayNote = `${progressionNote} (Hold for ${displayReps}s)`;
+            }
+            return {
+                ...ex,
+                recommendedSets: sets,
+                recommendedReps: displayReps,
+                progressionNote: displayNote
+            };
+        });
+    }
     const focusMuscleGroups = getMuscleGroupsForFocus(focus); // e.g. ['Chest', 'Shoulders', 'Triceps']
     const userClass = (0, exerciseLibrary_1.getUserClass)(profile);
     const classPool = (0, exerciseLibrary_1.getExercisesForClass)(userClass, exercisesList, profile);
