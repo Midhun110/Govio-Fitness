@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
-import { DEV_DEMO_EMAIL, DEV_DEMO_OTP, DEV_DEMO_PASSWORD } from '../config/devConfig';
+import { DEV_DEMO_EMAIL, DEV_DEMO_OTP, DEV_DEMO_PASSWORD, isDemoModeAllowed } from '../config/devConfig';
 
 export default function LoginScreen() {
   const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
@@ -48,9 +48,20 @@ export default function LoginScreen() {
       return;
     }
 
-    if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
-      setOtpSent(true);
-      setMessage('A sign-in link has been sent to your email. Open your email and tap the link to continue.');
+    if (isDemoModeAllowed() && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
+      setLoading(true);
+      try {
+        // Sign in instantly using mock session in dev & preview builds (no OTP/magic link email sent)
+        (supabase.auth as any).setMockSession({
+          user: { id: 'mock-user-id-12345', email: DEV_DEMO_EMAIL },
+          access_token: 'mock-access-token',
+          refresh_token: 'mock-refresh-token',
+        });
+      } catch (err: any) {
+        setError(err.message || 'Demo login failed.');
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -221,7 +232,7 @@ export default function LoginScreen() {
                   <View style={styles.inputContainer}>
                     <View style={styles.inputLabelRow}>
                       <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
-                      {__DEV__ && (
+                      {isDemoModeAllowed() && (
                         <TouchableOpacity
                           onPress={() => setEmail(DEV_DEMO_EMAIL)}
                           activeOpacity={0.7}

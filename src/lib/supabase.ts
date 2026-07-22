@@ -52,8 +52,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// DEV-ONLY: Client-Side Auth Bypass Mocking
-if (__DEV__) {
+import { isDemoModeAllowed } from '../config/devConfig';
+
+// Client-Side Auth Bypass Mocking for Local Dev, Dev Client APKs, and Preview Builds
+if (isDemoModeAllowed()) {
   let mockSession: any = null;
   const listeners = new Set<any>();
 
