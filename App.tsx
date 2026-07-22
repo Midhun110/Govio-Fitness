@@ -22,7 +22,34 @@ import ActiveWorkoutScreen from './src/screens/ActiveWorkoutScreen';
 import AiChatScreen from './src/screens/AiChatScreen';
 import { NutritionMetrics, calculateNutritionMetrics, classifyUserProfile } from './src/utils/calculations';
 import * as SecureStore from 'expo-secure-store';
+import * as Linking from 'expo-linking';
 import { getPendingOnboarding, setPendingOnboarding } from './src/utils/pendingOnboarding';
+
+// Helper function to extract tokens or code from Magic Link deep link URLs and set Supabase session
+const handleDeepLinkUrl = async (url: string | null) => {
+  if (!url) return;
+  try {
+    if (url.includes('#')) {
+      const hash = url.split('#')[1];
+      const params = new URLSearchParams(hash);
+      const access_token = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      if (access_token && refresh_token) {
+        await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+      }
+    } else if (url.includes('code=')) {
+      const codeMatch = url.match(/[?&]code=([^&]+)/);
+      if (codeMatch && codeMatch[1]) {
+        await supabase.auth.exchangeCodeForSession(codeMatch[1]);
+      }
+    }
+  } catch (err) {
+    console.error('Error processing magic link deep link:', err);
+  }
+};
 
 // Inject mobile-frame CSS immediately at module load (before first render).
 // This constrains the #root element at the DOM level so React Navigation
@@ -193,7 +220,17 @@ export default function App() {
       }
     });
 
-    // Listen for auth state changes (sign in, sign out, etc.)
+    // Handle deep link URL when app is opened via Magic Link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLinkUrl(url);
+    });
+
+    // Listen for incoming deep link URLs when app is active
+    const linkingSubscription = Linking.addEventListener('url', (event) => {
+      if (event.url) handleDeepLinkUrl(event.url);
+    });
+
+    // Listen for auth state changes (sign in, magic link callback, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       setSession(newSession);
       if (newSession) {
@@ -298,6 +335,7 @@ export default function App() {
     });
 
     return () => {
+      linkingSubscription.remove();
       subscription.unsubscribe();
     };
   }, []);

@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { DEV_DEMO_EMAIL, DEV_DEMO_OTP, DEV_DEMO_PASSWORD } from '../config/devConfig';
 
@@ -49,42 +50,48 @@ export default function LoginScreen() {
 
     if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
       setOtpSent(true);
-      setMessage(`A 6-digit verification code has been sent to ${identifier}.`);
+      setMessage('A sign-in link has been sent to your email. Open your email and tap the link to continue.');
       return;
     }
 
     setLoading(true);
     try {
-      // For Email OTP, call signInWithOtp with shouldCreateUser: true and NO emailRedirectTo.
-      // Omission of emailRedirectTo ensures Supabase sends a 6-digit OTP token instead of a magic link.
-      const { error: otpError } = await supabase.auth.signInWithOtp(
-        authMethod === 'email'
-          ? {
-              email: identifier,
-              options: {
-                shouldCreateUser: true,
-              },
-            }
-          : {
-              phone: identifier,
-              options: {
-                shouldCreateUser: true,
-              },
-            }
-      );
+      if (authMethod === 'email') {
+        // Construct deep link redirect URL for Expo (e.g. govio://auth/callback)
+        const redirectUrl = Linking.createURL('auth/callback');
 
-      if (otpError) throw otpError;
+        const { error: magicLinkError } = await supabase.auth.signInWithOtp({
+          email: identifier,
+          options: {
+            emailRedirectTo: redirectUrl,
+          },
+        });
 
-      setOtpSent(true);
-      setMessage(`A 6-digit verification code has been sent to ${identifier}.`);
+        if (magicLinkError) throw magicLinkError;
+
+        setOtpSent(true);
+        setMessage('A sign-in link has been sent to your email. Open your email and tap the link to continue.');
+      } else {
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          phone: identifier,
+          options: {
+            shouldCreateUser: true,
+          },
+        });
+
+        if (otpError) throw otpError;
+
+        setOtpSent(true);
+        setMessage(`A 6-digit verification code has been sent to ${identifier}.`);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to send OTP code. Please try again.');
+      setError(err.message || 'Failed to send request. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyPhoneOtp = async () => {
     setError(null);
     setMessage(null);
 
@@ -94,38 +101,16 @@ export default function LoginScreen() {
       return;
     }
 
-    const identifier = authMethod === 'email' ? email.trim() : phone.trim();
-
-    if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
-      if (cleanToken !== DEV_DEMO_OTP) {
-        setError(`Invalid passcode for demo account. Use ${DEV_DEMO_OTP}`);
-        return;
-      }
-      setLoading(true);
-      try {
-        // Sign in using local client-side session mocking
-        (supabase.auth as any).setMockSession({
-          user: { id: 'mock-user-id-12345', email: DEV_DEMO_EMAIL },
-          access_token: 'mock-access-token',
-          refresh_token: 'mock-refresh-token',
-        });
-      } catch (err: any) {
-        setError(err.message || 'Verification failed. Please check the credentials.');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
+    const identifier = phone.trim();
 
     setLoading(true);
 
     try {
-      // Verify OTP passcode with type: 'email' for email or type: 'sms' for phone
-      const { error: verifyError } = await supabase.auth.verifyOtp(
-        authMethod === 'email'
-          ? { email: identifier, token: cleanToken, type: 'email' }
-          : { phone: identifier, token: cleanToken, type: 'sms' }
-      );
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        phone: identifier,
+        token: cleanToken,
+        type: 'sms',
+      });
 
       if (verifyError) throw verifyError;
     } catch (err: any) {
@@ -158,12 +143,20 @@ export default function LoginScreen() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>
-              {otpSent ? 'Verification' : 'Get Started'}
+              {otpSent
+                ? authMethod === 'email'
+                  ? 'Check Your Email'
+                  : 'Verification'
+                : 'Get Started'}
             </Text>
             <Text style={styles.cardSubtitle}>
               {otpSent
-                ? `Enter the 6-digit code we sent to ${authMethod === 'email' ? email : phone}`
-                : 'Receive a secure one-time passcode to sign in or sign up.'}
+                ? authMethod === 'email'
+                  ? `We sent a magic sign-in link to ${email}`
+                  : `Enter the 6-digit code we sent to ${phone}`
+                : authMethod === 'email'
+                  ? 'Receive a magic link via email to sign in or sign up.'
+                  : 'Receive a secure one-time passcode to sign in or sign up.'}
             </Text>
 
             {error && (
@@ -280,14 +273,36 @@ export default function LoginScreen() {
                   )}
                 </TouchableOpacity>
               </>
+            ) : authMethod === 'email' ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.primaryButton, loading && styles.disabledButton]}
+                  activeOpacity={0.85}
+                  onPress={handleSendOtp}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#000000" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Resend Link</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.secondaryButton} 
+                  activeOpacity={0.7}
+                  onPress={handleReset}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    Change Email Address
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <>
                 <View style={styles.inputContainer}>
                   <View style={styles.inputLabelRow}>
                     <Text style={styles.inputLabel}>6-DIGIT VERIFICATION CODE</Text>
-                    {__DEV__ && email.trim().toLowerCase() === DEV_DEMO_EMAIL.toLowerCase() && (
-                      <Text style={styles.devHintText}>Passcode: {DEV_DEMO_OTP}</Text>
-                    )}
                   </View>
                   <TextInput
                     style={[styles.input, styles.otpInput]}
@@ -305,7 +320,7 @@ export default function LoginScreen() {
                 <TouchableOpacity
                   style={[styles.primaryButton, loading && styles.disabledButton]}
                   activeOpacity={0.85}
-                  onPress={handleVerifyOtp}
+                  onPress={handleVerifyPhoneOtp}
                   disabled={loading}
                 >
                   {loading ? (
@@ -321,7 +336,7 @@ export default function LoginScreen() {
                   onPress={handleReset}
                 >
                   <Text style={styles.secondaryButtonText}>
-                    Change {authMethod === 'email' ? 'Email' : 'Phone'}
+                    Change Phone Number
                   </Text>
                 </TouchableOpacity>
               </>

@@ -46,8 +46,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    // detectSessionInUrl set to false as Email OTP authentication verifies 6-digit codes directly
-    // via supabase.auth.verifyOtp() instead of handling magic link URL redirects/fragments.
+    // Magic Link deep link URLs (govio://auth/callback) are handled via custom expo-linking listener
+    // in App.tsx which passes hash/code parameters to setSession() / exchangeCodeForSession().
     detectSessionInUrl: false,
   },
 });

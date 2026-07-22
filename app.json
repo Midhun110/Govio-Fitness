@@ -2,6 +2,7 @@
   "expo": {
     "name": "Govio-Fitness",
     "slug": "Govio-Fitness",
+    "scheme": "govio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
