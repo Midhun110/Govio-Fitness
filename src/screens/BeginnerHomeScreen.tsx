@@ -17,6 +17,7 @@ import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import * as SecureStore from 'expo-secure-store';
 import { classifyUserProfile } from '../utils/calculations';
+import { ErrorState } from '../components/ErrorState';
 
 type BeginnerHomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 
@@ -27,9 +28,11 @@ export default function BeginnerHomeScreen({ onProfileUpdate }: { onProfileUpdat
   const user = session.user;
 
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
 
   const fetchProfile = async () => {
+    setFetchError(null);
     if (user.id === 'mock-user-id-12345') {
       try {
         const cached = Platform.OS === 'web'
@@ -53,11 +56,13 @@ export default function BeginnerHomeScreen({ onProfileUpdate }: { onProfileUpdat
           .select('*')
           .eq('id', user.id)
           .single();
-        if (data && !error) {
+        if (error) throw error;
+        if (data) {
           setProfile(data);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching profile in BeginnerHomeScreen:', err);
+        setFetchError(err?.message || 'Network error occurred while fetching beginner profile.');
       } finally {
         setLoading(false);
       }
@@ -141,6 +146,15 @@ export default function BeginnerHomeScreen({ onProfileUpdate }: { onProfileUpdat
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#D4FF13" />
       </View>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <ErrorState message={fetchError} onRetry={fetchProfile} />
+      </SafeAreaView>
     );
   }
 

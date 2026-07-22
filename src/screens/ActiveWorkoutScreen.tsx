@@ -54,6 +54,7 @@ interface ActiveExerciseState {
   isSuperset?: boolean;
   supersetWithNext?: boolean;
   restTimeSeconds?: number;
+  progressionHint?: string;
 }
 
 export default function ActiveWorkoutScreen() {
@@ -676,12 +677,29 @@ export default function ActiveWorkoutScreen() {
     setActiveExercises((prev) => {
       const copy = [...prev];
       if (copy[index]) {
-        // Auto-fill Weight & Reps inputs with the first set from last performance
         let fillWeight = '60';
-        let fillReps = '10';
+        let fillReps = (copy[index].exercise as any).recommendedReps ? String((copy[index].exercise as any).recommendedReps) : '10';
+        let progressionHint = '';
+
         if (lastPerformance.length > 0) {
-          fillWeight = lastPerformance[0].weight_kg;
-          fillReps = lastPerformance[0].reps;
+          const targetReps = (copy[index].exercise as any).recommendedReps || 10;
+          const lastWeight = parseFloat(lastPerformance[0].weight_kg) || 60;
+          const lastReps = parseInt(lastPerformance[0].reps, 10) || 10;
+
+          const allHitTarget = lastPerformance.every((s) => (parseInt(s.reps, 10) || 0) >= targetReps);
+
+          if (allHitTarget) {
+            // Same reps at +2.5% - 5% weight (rounded to nearest 0.5kg)
+            const calculatedW = Math.max(lastWeight + 1, Math.round((lastWeight * 1.025) * 2) / 2);
+            fillWeight = String(calculatedW);
+            fillReps = String(lastReps);
+            progressionHint = `Last time: ${lastWeight}kg × ${lastReps} reps → suggested: ${fillWeight}kg × ${fillReps}`;
+          } else {
+            // Same weight with +1 rep
+            fillWeight = String(lastWeight);
+            fillReps = String(lastReps + 1);
+            progressionHint = `Last time: ${lastWeight}kg × ${lastReps} reps → suggested: ${fillWeight}kg × ${fillReps}`;
+          }
         }
 
         copy[index] = {
@@ -693,6 +711,7 @@ export default function ActiveWorkoutScreen() {
           historicalMaxVolume,
           inputWeight: fillWeight,
           inputReps: fillReps,
+          progressionHint,
         };
       }
       return copy;
@@ -1652,6 +1671,14 @@ export default function ActiveWorkoutScreen() {
                 );
               })()}
             </View>
+
+            {/* Progression Suggestion Hint Banner */}
+            {ae.progressionHint ? (
+              <View style={styles.progressionHintBanner}>
+                <Text style={styles.progressionHintIcon}>💡</Text>
+                <Text style={styles.progressionHintText}>{ae.progressionHint}</Text>
+              </View>
+            ) : null}
 
             {/* Set Type Pills Selector Row */}
             <View style={styles.setTagRow}>
@@ -3060,5 +3087,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     marginTop: 2,
+  },
+  progressionHintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(212, 255, 19, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 255, 19, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  progressionHintIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  progressionHintText: {
+    color: '#D4FF13',
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
   },
 });

@@ -28,6 +28,7 @@ import * as SecureStore from 'expo-secure-store';
 import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { getProgramDayDetails, autoAdvanceProgramDay, getExercisesForFocus, WEEKDAYS, selectExercisesForMuscle } from '../utils/program';
 import { getUserClass, getExercisesForClass } from '../utils/exerciseLibrary';
+import { ErrorState } from '../components/ErrorState';
 
 
 type StartWorkoutScreenRouteProp = RouteProp<RootStackParamList, 'StartWorkout'>;
@@ -63,6 +64,7 @@ export default function StartWorkoutScreen() {
   const user = session.user;
 
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [exercisesList, setExercisesList] = useState<Exercise[]>([]);
   const [activeTab, setActiveTab] = useState<'muscle' | 'custom' | 'program'>('muscle');
   const [profile, setProfile] = useState<any>(null);
@@ -726,8 +728,9 @@ export default function StartWorkoutScreen() {
           const suggestions = calculateProgressionSuggestions(workoutsData);
           setProgressionSuggestions(suggestions);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching exercises:', err);
+        setFetchError(err?.message || 'Network error occurred while fetching exercises library. Please check your connection.');
         const customs = await getLocalCustomExercises();
         rawList = [...MOCK_EXERCISES, ...customs];
       }
@@ -979,6 +982,22 @@ export default function StartWorkoutScreen() {
         <ActivityIndicator size="large" color="#D4FF13" />
         <StatusBar barStyle="light-content" />
       </View>
+    );
+  }
+
+  if (fetchError && exercisesList.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>✕ Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Start Session</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <ErrorState message={fetchError} onRetry={fetchExercises} />
+      </SafeAreaView>
     );
   }
 

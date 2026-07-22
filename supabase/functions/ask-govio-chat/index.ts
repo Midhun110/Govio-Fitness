@@ -163,7 +163,26 @@ Today's Nutrition Summary:
 - Remaining Fat: ${remainingFat}g
 
 Provide practical, clear, and highly concise meal/diet advice. Keep answers conversational, helpful, and under 150 words.
-IMPORTANT: You are a nutrition assistant, not a doctor. If the user asks about medical issues, injuries, or diagnosing health conditions, politely advise them to consult a qualified medical professional or registered dietitian. Do not provide medical advice or diagnoses.`
+IMPORTANT: You are a nutrition assistant, not a doctor. If the user asks about medical issues, injuries, or diagnosing health conditions, politely advise them to consult a qualified medical professional or registered dietitian. Do not provide medical advice or diagnoses.
+
+FOOD LOGGING INTENT DETECTION:
+If the user's message expresses an intent to log a food, or states that they just ate / consumed a food (e.g. "log 200g grilled chicken", "I ate a banana", "had 2 eggs for breakfast", "logged 150g rice"), you MUST extract the food item details and output a structured JSON block at the VERY END of your response inside <<<FOOD_LOG_INTENT>>> tags:
+<<<FOOD_LOG_INTENT>>>
+{
+  "is_food_log": true,
+  "food_name": "Grilled Chicken",
+  "quantity_grams": 200,
+  "meal_type": "lunch",
+  "confidence": "high"
+}
+<<<END_FOOD_LOG_INTENT>>>
+
+Rules for FOOD_LOG_INTENT:
+- food_name: Clean, concise name of the food item (e.g. "Grilled Chicken", "Banana", "Whole Egg", "Basmati Rice", "Milk").
+- quantity_grams: Estimated quantity in grams as a number. If user mentions pieces/items (e.g. 1 banana ~120g, 2 eggs ~100g, 1 roti ~40g, 1 glass milk ~250g, 1 apple ~150g), estimate standard grams.
+- meal_type: One of "breakfast", "lunch", "dinner", or "snack". Infer from context or time of day if not specified.
+- confidence: "high" if clear food and quantity, "medium" if estimated.
+- Place the JSON block at the end after your friendly conversational reply.`
 
     // Construct messages array for Anthropic Claude (filtering history to keep last 6 messages)
     const formattedHistory = (conversationHistory || [])
@@ -198,9 +217,22 @@ IMPORTANT: You are a nutrition assistant, not a doctor. If the user asks about m
     }
 
     const resJson = await response.json()
-    const replyText = resJson.content?.[0]?.text || 'No response generated.'
+    const rawReplyText = resJson.content?.[0]?.text || 'No response generated.'
 
-    return new Response(JSON.stringify({ text: replyText }), {
+    let conversationalText = rawReplyText
+    let foodLogIntent = null
+
+    const match = rawReplyText.match(/<<<FOOD_LOG_INTENT>>>([\s\S]*?)<<<END_FOOD_LOG_INTENT>>>/)
+    if (match && match[1]) {
+      try {
+        foodLogIntent = JSON.parse(match[1].trim())
+      } catch (e) {
+        console.error('Failed to parse food log intent JSON:', e)
+      }
+      conversationalText = rawReplyText.replace(/<<<FOOD_LOG_INTENT>>>[\s\S]*?<<<END_FOOD_LOG_INTENT>>>/, '').trim()
+    }
+
+    return new Response(JSON.stringify({ text: conversationalText, foodLogIntent }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

@@ -10,6 +10,8 @@ import { getLocalCustomExercises, addLocalCustomExercise } from '../utils/custom
 import { triggerSuccessHaptic } from '../utils/haptics';
 import * as SecureStore from 'expo-secure-store';
 import { getIsolatedLibraryForUser } from '../utils/exerciseLibrary';
+import { getMuscleFreshness, MuscleFreshness } from '../utils/program';
+import { ErrorState } from '../components/ErrorState';
 
 type MuscleDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -26,8 +28,10 @@ export default function MuscleDetailScreen() {
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [showAllExercises, setShowAllExercises] = useState(false);
+  const [freshnessInfo, setFreshnessInfo] = useState<MuscleFreshness | null>(null);
 
   // Modal & Form States
   const [modalVisible, setModalVisible] = useState(false);
@@ -254,11 +258,27 @@ export default function MuscleDetailScreen() {
       }
     };
 
+    const fetchFreshness = async () => {
+      try {
+        const userId = user ? user.id : 'mock-user-id-12345';
+        const list = await getMuscleFreshness(userId);
+        const item = list.find(m =>
+          m.muscleGroup.toLowerCase() === muscleGroup.toLowerCase() ||
+          (m.muscleGroup === 'Abs' && (muscleGroup.toLowerCase() === 'core' || muscleGroup.toLowerCase() === 'abs'))
+        );
+        setFreshnessInfo(item || null);
+      } catch (e) {
+        console.error('Error fetching freshness in MuscleDetailScreen:', e);
+      }
+    };
+
     fetchProfile();
     fetchExercises();
+    fetchFreshness();
     const unsubscribe = navigation.addListener('focus', () => {
       fetchProfile();
       fetchExercises();
+      fetchFreshness();
     });
     return unsubscribe;
   }, [muscleGroup, navigation, user]);
@@ -278,6 +298,22 @@ export default function MuscleDetailScreen() {
 
   const scaleStyle = {};
 
+  const dotColor = freshnessInfo
+    ? freshnessInfo.freshness >= 70
+      ? '#00E676'
+      : freshnessInfo.freshness >= 40
+      ? '#FFB300'
+      : '#FF3D00'
+    : '#00E676';
+
+  const statusLabel = freshnessInfo
+    ? freshnessInfo.freshness >= 70
+      ? 'RECOVERED'
+      : freshnessInfo.freshness >= 40
+      ? 'RECOVERING'
+      : 'FATIGUED'
+    : 'FRESH';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -292,12 +328,47 @@ export default function MuscleDetailScreen() {
           >
             <Text style={styles.backButtonText}>← BACK</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{muscleGroup.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
+            <Text style={styles.headerTitle}>{muscleGroup.toUpperCase()}</Text>
+            {freshnessInfo && (
+              <View style={{
+                marginLeft: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: dotColor + '22',
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: dotColor,
+              }}>
+                <View style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: dotColor,
+                  marginRight: 5
+                }} />
+                <Text style={{
+                  color: dotColor,
+                  fontSize: 10,
+                  fontWeight: '800',
+                  letterSpacing: 0.5
+                }}>
+                  {freshnessInfo.freshness}% {statusLabel}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#D4FF13" />
+          </View>
+        ) : fetchError ? (
+          <View style={styles.centerContainer}>
+            <ErrorState message={fetchError} onRetry={fetchExercises} />
           </View>
         ) : (
           <ScrollView 

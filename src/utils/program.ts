@@ -1,5 +1,6 @@
 import { UserProfile, Exercise, isExerciseMatch } from './calculations';
 import { getUserClass, getExercisesForClass } from './exerciseLibrary';
+import { supabase } from '../lib/supabase';
 
 function getAgeForProfile(profile: UserProfile): number {
   if (!profile.date_of_birth) return 25;
@@ -503,3 +504,174 @@ export function getExercisesForFocus(
 
   return selected;
 }
+
+export interface MuscleFreshness {
+  muscleGroup: string;
+  freshness: number; // 0 - 100
+  lastTrainedAt: Date | null;
+}
+
+export const TARGET_MUSCLE_GROUPS = [
+  'Chest',
+  'Back',
+  'Shoulders',
+  'Biceps',
+  'Triceps',
+  'Legs',
+  'Abs',
+  'Forearms'
+];
+
+/**
+ * Returns recovery window in hours:
+ * - Large muscle groups (Chest, Back, Legs): 48 hours
+ * - Small muscle groups (Shoulders, Biceps, Triceps, Abs, Forearms): 24 hours
+ */
+export function getMuscleRecoveryWindowHours(muscleGroup: string): number {
+  const m = muscleGroup.toLowerCase();
+  if (m === 'chest' || m === 'back' || m === 'legs') {
+    return 48;
+  }
+  return 24;
+}
+
+/**
+ * Computes a linear ramp 0-100 freshness score based on hours since last trained.
+ */
+export function calculateFreshnessScore(
+  lastTrainedAt: Date | null,
+  recoveryWindowHours: number,
+  now: Date = new Date()
+): number {
+  if (!lastTrainedAt || isNaN(lastTrainedAt.getTime())) {
+    return 100; // Never trained = 100% fresh
+  }
+
+  const diffMs = now.getTime() - lastTrainedAt.getTime();
+  const hoursSince = diffMs / (1000 * 60 * 60);
+
+  if (hoursSince <= 0) {
+    return 0;
+  }
+
+  if (hoursSince >= recoveryWindowHours) {
+    return 100;
+  }
+
+  return Math.min(100, Math.max(0, Math.round((hoursSince / recoveryWindowHours) * 100)));
+}
+
+export function normalizeMuscleGroup(name?: string): string | null {
+  if (!name) return null;
+  const n = name.trim().toLowerCase();
+  if (n === 'chest') return 'Chest';
+  if (n === 'back') return 'Back';
+  if (n === 'shoulders' || n === 'shoulder') return 'Shoulders';
+  if (n === 'biceps' || n === 'bicep') return 'Biceps';
+  if (n === 'triceps' || n === 'tricep') return 'Triceps';
+  if (n === 'legs' || n === 'leg' || n === 'calves' || n === 'quadriceps' || n === 'hamstrings' || n === 'glutes') return 'Legs';
+  if (n === 'abs' || n === 'core' || n === 'abdominals') return 'Abs';
+  if (n === 'forearms' || n === 'forearm') return 'Forearms';
+  return null;
+}
+
+/**
+ * Computes 0-100 recovery/freshness score per muscle group for a given user.
+ * Optional customNow and customWorkoutsList parameters allow deterministic testing & offline mock evaluations.
+ */
+export async function getMuscleFreshness(
+  userId: string,
+  customNow?: Date,
+  customWorkoutsList?: any[]
+): Promise<MuscleFreshness[]> {
+  const now = customNow || new Date();
+  const lastTrainedMap: { [key: string]: Date | null } = {};
+
+  TARGET_MUSCLE_GROUPS.forEach((mg) => {
+    lastTrainedMap[mg] = null;
+  });
+
+  let workoutsData: any[] = [];
+
+  if (customWorkoutsList) {
+    workoutsData = customWorkoutsList;
+  } else if (userId === 'mock-user-id-12345') {
+    try {
+      const { MOCK_WORKOUTS } = require('../screens/HomeScreen');
+      workoutsData = MOCK_WORKOUTS || [];
+    } catch (e) {
+      workoutsData = [];
+    }
+  } else {
+    try {
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select(`
+          created_at,
+          workouts!inner (
+            date,
+            created_at,
+            user_id,
+            status
+          ),
+          exercises (
+            muscle_group
+          )
+        `)
+        .eq('workouts.user_id', userId)
+        .eq('workouts.status', 'completed');
+
+      if (!error && data) {
+        data.forEach((row: any) => {
+          const rawMg = row.exercises?.muscle_group;
+          const mg = normalizeMuscleGroup(rawMg);
+          if (mg) {
+            const rawDate = row.created_at || row.workouts?.created_at || row.workouts?.date;
+            if (rawDate) {
+              const dateObj = new Date(rawDate);
+              if (!isNaN(dateObj.getTime())) {
+                if (!lastTrainedMap[mg] || dateObj > lastTrainedMap[mg]!) {
+                  lastTrainedMap[mg] = dateObj;
+                }
+              }
+            }
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching muscle freshness from Supabase:', err);
+    }
+  }
+
+  if (workoutsData.length > 0) {
+    workoutsData.forEach((w: any) => {
+      const rawWDate = w.created_at || w.date;
+      if (!rawWDate) return;
+      const wDate = new Date(rawWDate);
+      if (isNaN(wDate.getTime())) return;
+
+      const sets = w.workout_sets || w.sets || [];
+      sets.forEach((set: any) => {
+        const rawMg = set.exercises?.muscle_group || set.muscle_group;
+        const mg = normalizeMuscleGroup(rawMg);
+        if (mg) {
+          if (!lastTrainedMap[mg] || wDate > lastTrainedMap[mg]!) {
+            lastTrainedMap[mg] = wDate;
+          }
+        }
+      });
+    });
+  }
+
+  return TARGET_MUSCLE_GROUPS.map((mg) => {
+    const recoveryWindow = getMuscleRecoveryWindowHours(mg);
+    const lastTrained = lastTrainedMap[mg];
+    const freshness = calculateFreshnessScore(lastTrained, recoveryWindow, now);
+    return {
+      muscleGroup: mg,
+      freshness,
+      lastTrainedAt: lastTrained
+    };
+  });
+}
+

@@ -27,6 +27,9 @@ import { calculateNutritionMetrics, NutritionMetrics, UserProfile, isExerciseMat
 import { getDashboardFeatures } from '../utils/dashboardFeatures';
 import { POPULAR_WORKOUTS, Workout } from '../data/workoutsData';
 import { getUserClass, getExercisesForClass, getIsolatedLibraryForUser } from '../utils/exerciseLibrary';
+import { getMuscleFreshness, MuscleFreshness } from '../utils/program';
+import { DashboardSkeleton } from '../components/SkeletonPlaceholder';
+import { ErrorState } from '../components/ErrorState';
 import AnalyticsView from '../components/AnalyticsView';
 import { MOCK_EXERCISES, getExerciseImageSource, getLocalEquipmentRequiredTag } from '../data/exercisesData';
 import { getLocalCustomExercises } from '../utils/customExercises';
@@ -158,8 +161,9 @@ const calculateWeeklyStreak = (workoutDates: string[]): number => {
 
 const getSuggestedMuscleGroup = (
   workoutsList: any[],
-  profile?: UserProfile | null
-): { muscle: string; daysAgo: number | null } => {
+  profile?: UserProfile | null,
+  freshnessList: MuscleFreshness[] = []
+): { muscle: string; daysAgo: number | null; freshness: number } => {
   const ALL_MUSCLES = [
     'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Legs', 'Abs', 'Forearms'
   ];
@@ -170,58 +174,47 @@ const getSuggestedMuscleGroup = (
   // Filter muscle groups where at least one matching exercise exists in the user class library
   const eligibleMuscles = ALL_MUSCLES.filter(m => {
     const matchingCount = classExercises.filter(ex => 
-      ex.muscle_group.toLowerCase() === m.toLowerCase()
+      ex.muscle_group.toLowerCase() === m.toLowerCase() || (m === 'Abs' && ex.muscle_group.toLowerCase() === 'core')
     ).length;
     return matchingCount > 0;
   });
 
   const activeMuscles = eligibleMuscles.length > 0 ? eligibleMuscles : ALL_MUSCLES;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const lastTrainedMap: { [key: string]: Date } = {};
-  activeMuscles.forEach((m) => {
-    lastTrainedMap[m] = new Date(0);
+  // Filter muscle groups with freshness >= 70%
+  const freshMuscles = activeMuscles.filter(m => {
+    const fItem = freshnessList.find(f => f.muscleGroup === m);
+    return fItem ? fItem.freshness >= 70 : true;
   });
 
-  workoutsList.forEach((w) => {
-    if (!w.date) return;
-    const wDate = new Date(w.date);
-    wDate.setHours(0, 0, 0, 0);
-    const sets = w.workout_sets || w.sets || [];
-    sets.forEach((set: any) => {
-      let muscle = set.exercises?.muscle_group || set.muscle_group || '';
-      if (muscle) {
-        muscle = muscle.charAt(0).toUpperCase() + muscle.slice(1).toLowerCase();
-        if (muscle === 'Core') muscle = 'Abs';
-        if (activeMuscles.includes(muscle)) {
-          if (wDate > lastTrainedMap[muscle]) {
-            lastTrainedMap[muscle] = wDate;
-          }
-        }
-      }
-    });
-  });
+  const pool = freshMuscles.length > 0 ? freshMuscles : activeMuscles;
 
-  let stalestMuscle = activeMuscles[0] || 'Chest';
-  let oldestDate = lastTrainedMap[stalestMuscle] || new Date(0);
+  // Pick the muscle with highest freshness (or earliest last trained)
+  let bestMuscle = pool[0] || 'Chest';
+  let highestFreshness = -1;
 
-  activeMuscles.forEach((m) => {
-    if (lastTrainedMap[m] < oldestDate) {
-      oldestDate = lastTrainedMap[m];
-      stalestMuscle = m;
+  pool.forEach(m => {
+    const fItem = freshnessList.find(f => f.muscleGroup === m);
+    const fVal = fItem ? fItem.freshness : 100;
+    if (fVal > highestFreshness) {
+      highestFreshness = fVal;
+      bestMuscle = m;
     }
   });
 
-  const oldestTime = oldestDate.getTime();
-  if (oldestTime === 0) {
-    return { muscle: stalestMuscle, daysAgo: null };
-  } else {
-    const diffMs = today.getTime() - oldestTime;
-    const daysAgo = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
-    return { muscle: stalestMuscle, daysAgo };
+  const bestFreshnessItem = freshnessList.find(f => f.muscleGroup === bestMuscle);
+  const lastDate = bestFreshnessItem?.lastTrainedAt ? new Date(bestFreshnessItem.lastTrainedAt) : null;
+  let daysAgo: number | null = null;
+  if (lastDate) {
+    const diffMs = new Date().getTime() - lastDate.getTime();
+    daysAgo = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
   }
+
+  return {
+    muscle: bestMuscle,
+    daysAgo,
+    freshness: bestFreshnessItem ? bestFreshnessItem.freshness : (highestFreshness >= 0 ? highestFreshness : 100)
+  };
 };
 
 const HomeIcon = ({ active }: { active: boolean }) => (
@@ -533,6 +526,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Dashboard state
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -555,7 +549,8 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
   const [thisWeekSessions, setThisWeekSessions] = useState(0);
   const [thisWeekVolume, setThisWeekVolume] = useState(0);
   const [weeklyStreak, setWeeklyStreak] = useState(0);
-  const [suggestedMuscle, setSuggestedMuscle] = useState<{ muscle: string; daysAgo: number | null }>({ muscle: 'Chest', daysAgo: null });
+  const [suggestedMuscle, setSuggestedMuscle] = useState<{ muscle: string; daysAgo: number | null; freshness: number }>({ muscle: 'Chest', daysAgo: null, freshness: 100 });
+  const [muscleFreshnessList, setMuscleFreshnessList] = useState<MuscleFreshness[]>([]);
   const [draftWorkout, setDraftWorkout] = useState<any>(null);
   const sessionProgressAnim = React.useRef(new Animated.Value(0)).current;
   const scrollY = React.useRef(new Animated.Value(0)).current;
@@ -671,11 +666,29 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
           matchReason = 'For your age';
         }
 
+        // Additive Muscle Freshness Boost / Penalty
+        const primaryMuscle = (w as any).muscleGroup || (w.exercisesList && w.exercisesList[0] && w.exercisesList[0].muscle_group) || '';
+        const freshItem = muscleFreshnessList.find(f =>
+          f.muscleGroup.toLowerCase() === primaryMuscle.toLowerCase() ||
+          (f.muscleGroup === 'Abs' && primaryMuscle.toLowerCase() === 'core')
+        );
+
+        if (freshItem) {
+          if (freshItem.freshness >= 70) {
+            score += 2; // Priority boost for >70% fresh
+            matchReason = matchReason ? `${matchReason} • ${freshItem.freshness}% Fresh Target` : `${freshItem.freshness}% Fresh Target`;
+          } else if (freshItem.freshness < 40) {
+            score -= 3; // Visually deprioritize under 40% fresh
+            matchReason = matchReason ? `${matchReason} (Fatigued: ${freshItem.freshness}% Fresh)` : `Fatigued: ${freshItem.freshness}% Fresh`;
+          }
+        }
+
         return {
           ...w,
           score,
           matchReason,
           isMatch: score > 0,
+          freshness: freshItem ? freshItem.freshness : 100,
         };
       }).sort((a, b) => b.score - a.score);
     }
@@ -1271,7 +1284,10 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
       const mockWkStreak = calculateWeeklyStreak(mockDates);
       setWeeklyStreak(mockWkStreak);
 
-      const mockSugMuscle = getSuggestedMuscleGroup(MOCK_WORKOUTS, MOCK_PROFILE);
+      const mockFreshness = await getMuscleFreshness('mock-user-id-12345', new Date(), MOCK_WORKOUTS);
+      setMuscleFreshnessList(mockFreshness);
+
+      const mockSugMuscle = getSuggestedMuscleGroup(MOCK_WORKOUTS, MOCK_PROFILE, mockFreshness);
       setSuggestedMuscle(mockSugMuscle);
 
       await checkDraftWorkout();
@@ -1467,7 +1483,10 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
         const realWkStreak = calculateWeeklyStreak(dates);
         setWeeklyStreak(realWkStreak);
 
-        const realSugMuscle = getSuggestedMuscleGroup(allWorkoutsData, profileData);
+        const realFreshness = await getMuscleFreshness(user.id);
+        setMuscleFreshnessList(realFreshness);
+
+        const realSugMuscle = getSuggestedMuscleGroup(allWorkoutsData, profileData, realFreshness);
         setSuggestedMuscle(realSugMuscle);
 
         setAllWorkoutDates(dates);
@@ -1566,6 +1585,7 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
 
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
+      setFetchError(err?.message || 'Network error occurred while updating dashboard. Please check your connection.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -2149,6 +2169,14 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
         }
       >
         {activeTab === 'home' && (() => {
+          if (loading) {
+            return <DashboardSkeleton />;
+          }
+
+          if (fetchError) {
+            return <ErrorState message={fetchError} onRetry={fetchDashboardData} />;
+          }
+
           const MUSCLE_GROUPS = [
             { key: 'Chest', icon: '💪', label: 'Chest' },
             { key: 'Back', icon: '🦅', label: 'Back' },
@@ -2439,14 +2467,44 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
                   {/* "Suggested Muscle Group" Card */}
                   <View style={styles.suggestionCard}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.suggestionCardTitleLabel}>RECOMMENDED TARGET</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+                        <Text style={styles.suggestionCardTitleLabel}>RECOMMENDED TARGET</Text>
+                        <View style={{
+                          marginLeft: 8,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: (suggestedMuscle.freshness >= 70 ? '#00E676' : suggestedMuscle.freshness >= 40 ? '#FFB300' : '#FF3D00') + '22',
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: suggestedMuscle.freshness >= 70 ? '#00E676' : suggestedMuscle.freshness >= 40 ? '#FFB300' : '#FF3D00',
+                        }}>
+                          <View style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: suggestedMuscle.freshness >= 70 ? '#00E676' : suggestedMuscle.freshness >= 40 ? '#FFB300' : '#FF3D00',
+                            marginRight: 4
+                          }} />
+                          <Text style={{
+                            color: suggestedMuscle.freshness >= 70 ? '#00E676' : suggestedMuscle.freshness >= 40 ? '#FFB300' : '#FF3D00',
+                            fontSize: 10,
+                            fontWeight: '800'
+                          }}>
+                            {suggestedMuscle.freshness}% Fresh
+                          </Text>
+                        </View>
+                      </View>
                       <Text style={styles.suggestionMuscleName}>
                         {suggestedMuscle.muscle}
                       </Text>
                       <Text style={styles.suggestionLastTrained}>
-                        {suggestedMuscle.daysAgo === null
-                          ? 'Never trained yet'
-                          : `Last trained ${suggestedMuscle.daysAgo} day${suggestedMuscle.daysAgo === 1 ? '' : 's'} ago`}
+                        {suggestedMuscle.freshness >= 70
+                          ? 'Optimal target • Fully recovered for training'
+                          : suggestedMuscle.freshness >= 40
+                          ? 'Partially recovered • Moderate volume recommended'
+                          : 'Fatigued • High recovery load detected'}
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -2471,6 +2529,13 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
                       <View style={styles.muscleGrid}>
                         {MUSCLE_GROUPS.map((m) => {
                           const imageSource = MUSCLE_IMAGES[m.key];
+                          const freshItem = muscleFreshnessList.find(f =>
+                            f.muscleGroup.toLowerCase() === m.key.toLowerCase() ||
+                            (f.muscleGroup === 'Abs' && m.key.toLowerCase() === 'core')
+                          );
+                          const freshVal = freshItem ? freshItem.freshness : 100;
+                          const dotColor = freshVal >= 70 ? '#00E676' : freshVal >= 40 ? '#FFB300' : '#FF3D00';
+
                           return (
                             <TouchableOpacity
                               key={m.key}
@@ -2483,6 +2548,24 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
                                 });
                               }}
                             >
+                              {/* Freshness Badge Indicator */}
+                              <View style={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                                zIndex: 10,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                                paddingHorizontal: 7,
+                                paddingVertical: 3,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: dotColor,
+                              }}>
+                                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dotColor, marginRight: 4 }} />
+                                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800' }}>{freshVal}%</Text>
+                              </View>
                               {imageSource ? (
                                 <Image
                                   source={imageSource}
@@ -2975,7 +3058,21 @@ export default function HomeScreen({ route, onProfileUpdate }: HomeScreenProps) 
                           <Text style={{ fontSize: 16 }}>🥗</Text>
                           <Text style={styles.foodLogEmptyText}>No food items logged today.</Text>
                         </View>
-                        <Text style={styles.foodLogEmptySubtext}>Tap anywhere to log food</Text>
+                        <Text style={styles.foodLogEmptySubtext}>Track calories and macros to hit your nutrition budget</Text>
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: '#D4FF13',
+                            borderRadius: 16,
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            marginTop: 12,
+                            alignSelf: 'center',
+                          }}
+                          activeOpacity={0.85}
+                          onPress={() => navigation.navigate('LogFood', { session: session! })}
+                        >
+                          <Text style={{ color: '#0D141D', fontSize: 11, fontWeight: '900' }}>+ LOG YOUR FIRST MEAL</Text>
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   ) : (

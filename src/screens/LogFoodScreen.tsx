@@ -21,6 +21,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { MOCK_FOOD_LOGS } from './HomeScreen';
+import { FoodListSkeleton } from '../components/SkeletonPlaceholder';
+import { ErrorState } from '../components/ErrorState';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
@@ -78,6 +80,7 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [foodsList, setFoodsList] = useState<Food[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -273,10 +276,33 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#D4FF13" />
+      <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
-      </View>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>✕ Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Log Food</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <FoodListSkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  if (fetchError && foodsList.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>✕ Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Log Food</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <ErrorState message={fetchError} onRetry={fetchFoods} />
+      </SafeAreaView>
     );
   }
 
@@ -453,8 +479,26 @@ export default function LogFoodScreen({ route }: LogFoodScreenProps) {
                   )}
                   ListEmptyComponent={() => (
                     <View style={styles.emptyPlaceholder}>
+                      <Text style={{ fontSize: 32, marginBottom: 8 }}>🔍</Text>
                       <Text style={styles.emptyText}>No matching foods found</Text>
-                      <Text style={styles.emptySubtext}>Try adjusting your search criteria</Text>
+                      <Text style={styles.emptySubtext}>Try searching with a different term like 'rice', 'egg', or 'chicken'</Text>
+                      {searchQuery.length > 0 && (
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: '#232A34',
+                            borderRadius: 16,
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            marginTop: 14,
+                            borderWidth: 1,
+                            borderColor: '#3D4A3D',
+                          }}
+                          activeOpacity={0.8}
+                          onPress={() => setSearchQuery('')}
+                        >
+                          <Text style={{ color: '#D4FF13', fontSize: 12, fontWeight: '800' }}>Clear Search Filter</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
                 />

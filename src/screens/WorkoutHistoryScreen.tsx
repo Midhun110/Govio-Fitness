@@ -15,6 +15,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { supabase } from '../lib/supabase';
 import { MOCK_WORKOUTS } from './HomeScreen';
+import { HistorySkeleton } from '../components/SkeletonPlaceholder';
+import { ErrorState } from '../components/ErrorState';
 
 type WorkoutHistoryScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutHistory'>;
 
@@ -52,6 +54,7 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [workouts, setWorkouts] = useState<GroupedDateWorkouts[]>([]);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
@@ -129,6 +132,7 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
   };
 
   const fetchWorkoutsHistory = async () => {
+    setFetchError(null);
     if (user.id === 'mock-user-id-12345') {
       // Load mock items
       const formattedMock: WorkoutItem[] = MOCK_WORKOUTS.map((mw) => ({
@@ -182,8 +186,9 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
 
       const grouped = groupWorkoutsByDate(formattedData);
       setWorkouts(grouped);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching workout history:', err);
+      setFetchError(err?.message || 'Network error occurred while fetching workout history. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -206,10 +211,33 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#D4FF13" />
+      <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
-      </View>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>← Dashboard</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>History</Text>
+          <View style={{ width: 80 }} />
+        </View>
+        <HistorySkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>← Dashboard</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>History</Text>
+          <View style={{ width: 80 }} />
+        </View>
+        <ErrorState message={fetchError} onRetry={fetchWorkoutsHistory} />
+      </SafeAreaView>
     );
   }
 
@@ -226,8 +254,16 @@ export default function WorkoutHistoryScreen({ route }: WorkoutHistoryScreenProp
 
       {workouts.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>No workouts recorded yet</Text>
-          <Text style={styles.emptySubtitle}>Log your training sessions on the dashboard to build your history logbook</Text>
+          <Text style={{ fontSize: 36, marginBottom: 12 }}>🏋️</Text>
+          <Text style={styles.emptyTitle}>No Workouts Recorded Yet</Text>
+          <Text style={styles.emptySubtitle}>Log your training sessions on the dashboard to build your history logbook and track PRs</Text>
+          <TouchableOpacity
+            style={styles.emptyCtaBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('StartWorkout', { session })}
+          >
+            <Text style={styles.emptyCtaBtnText}>⚡ START YOUR FIRST WORKOUT</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -516,5 +552,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 12,
+  },
+  emptyCtaBtn: {
+    backgroundColor: '#D4FF13',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  emptyCtaBtnText: {
+    color: '#0D141D',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
 });

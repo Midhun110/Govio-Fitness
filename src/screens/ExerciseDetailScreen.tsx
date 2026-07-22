@@ -8,6 +8,7 @@ import { Exercise } from '../utils/calculations';
 import { MOCK_EXERCISES, getExerciseImageSource, getExerciseVideoSource } from '../data/exercisesData';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { getLocalCustomExercises, editLocalCustomExercise, deleteLocalCustomExercise } from '../utils/customExercises';
+import { ErrorState } from '../components/ErrorState';
 
 type ExerciseDetailScreenRouteProp = RouteProp<
   RootStackParamList & {
@@ -413,7 +414,7 @@ export default function ExerciseDetailScreen() {
           </View>
         ) : !exercise ? (
           <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>Failed to load guide details.</Text>
+            <ErrorState title="Exercise Guide Unavailable" message="Failed to load exercise details. Please check your connection and try again." onRetry={fetchExerciseDetails} />
           </View>
         ) : (
           <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], flex: 1 }}>
