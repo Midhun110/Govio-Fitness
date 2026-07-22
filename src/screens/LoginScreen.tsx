@@ -34,6 +34,14 @@ export default function LoginScreen() {
       return;
     }
 
+    if (authMethod === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(identifier)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+    }
+
     if (authMethod === 'phone' && !identifier.startsWith('+')) {
       setError('Phone number must include country code starting with + (e.g. +1234567890)');
       return;
@@ -41,20 +49,34 @@ export default function LoginScreen() {
 
     if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
       setOtpSent(true);
-      setMessage(`A 6-digit verification code has been sent to your ${authMethod}.`);
+      setMessage(`A 6-digit verification code has been sent to ${identifier}.`);
       return;
     }
 
     setLoading(true);
     try {
+      // For Email OTP, call signInWithOtp with shouldCreateUser: true and NO emailRedirectTo.
+      // Omission of emailRedirectTo ensures Supabase sends a 6-digit OTP token instead of a magic link.
       const { error: otpError } = await supabase.auth.signInWithOtp(
-        authMethod === 'email' ? { email: identifier } : { phone: identifier }
+        authMethod === 'email'
+          ? {
+              email: identifier,
+              options: {
+                shouldCreateUser: true,
+              },
+            }
+          : {
+              phone: identifier,
+              options: {
+                shouldCreateUser: true,
+              },
+            }
       );
 
       if (otpError) throw otpError;
 
       setOtpSent(true);
-      setMessage(`A 6-digit verification code has been sent to your ${authMethod}.`);
+      setMessage(`A 6-digit verification code has been sent to ${identifier}.`);
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP code. Please try again.');
     } finally {
@@ -66,14 +88,19 @@ export default function LoginScreen() {
     setError(null);
     setMessage(null);
 
-    if (!token.trim() || token.trim().length !== 6) {
-      setError('Please enter a valid 6-digit code');
+    const cleanToken = token.trim();
+    if (!cleanToken || cleanToken.length !== 6) {
+      setError('Please enter a valid 6-digit passcode');
       return;
     }
 
     const identifier = authMethod === 'email' ? email.trim() : phone.trim();
 
     if (__DEV__ && authMethod === 'email' && identifier.toLowerCase() === DEV_DEMO_EMAIL.toLowerCase()) {
+      if (cleanToken !== DEV_DEMO_OTP) {
+        setError(`Invalid passcode for demo account. Use ${DEV_DEMO_OTP}`);
+        return;
+      }
       setLoading(true);
       try {
         // Sign in using local client-side session mocking
@@ -93,15 +120,16 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
+      // Verify OTP passcode with type: 'email' for email or type: 'sms' for phone
       const { error: verifyError } = await supabase.auth.verifyOtp(
         authMethod === 'email'
-          ? { email: identifier, token: token.trim(), type: 'email' }
-          : { phone: identifier, token: token.trim(), type: 'sms' }
+          ? { email: identifier, token: cleanToken, type: 'email' }
+          : { phone: identifier, token: cleanToken, type: 'sms' }
       );
 
       if (verifyError) throw verifyError;
     } catch (err: any) {
-      setError(err.message || 'Verification failed. Please check the code.');
+      setError(err.message || 'Verification failed. Please check the passcode and try again.');
     } finally {
       setLoading(false);
     }

@@ -46,6 +46,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
+    // detectSessionInUrl set to false as Email OTP authentication verifies 6-digit codes directly
+    // via supabase.auth.verifyOtp() instead of handling magic link URL redirects/fragments.
     detectSessionInUrl: false,
   },
 });

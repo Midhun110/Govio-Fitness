@@ -1,0 +1,21 @@
+# Supabase Project Configuration for Govio Fitness
+
+[api]
+port = 54321
+
+[auth]
+site_url = "http://localhost:8081"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+
+# Require 6-digit OTP passcode authentication instead of magic links.
+# Ensure the Supabase Email template in the dashboard contains {{ .Token }} instead of {{ .ConfirmationURL }}.
+[auth.email.template.magic_link]
+subject = "Your Govio Fitness Verification Code"
+content_path = "./supabase/templates/email_otp.html"
